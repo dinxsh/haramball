@@ -8,6 +8,12 @@ test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("0.000000000000000001"), "1");
 });
 
+test("keeps partial or invalid stake input from crashing render", () => {
+  assert.equal(humanToWei(""), "0");
+  assert.equal(humanToWei("."), "0");
+  assert.equal(humanToWei("1e2"), "0");
+});
+
 test("formats Bento base units for compact display", () => {
   assert.equal(weiToHuman("1000000000000000000"), "1");
   assert.equal(weiToHuman("1234500000000000000"), "1.2345");

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build --configLoader runner",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test src/*.test.js api/*.test.js",
     "txline:setup": "node scripts/txline-worldcup-setup.mjs"

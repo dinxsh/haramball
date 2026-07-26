@@ -77,7 +77,10 @@ export async function recordLeaderboardResult({ id, result = "win" }) {
 }
 
 export function humanToWei(value) {
-  const [wholeRaw, fractionRaw = ""] = String(value || "0").split(".");
+  const normalized = String(value ?? "").trim();
+  if (!/^\d*(\.\d*)?$/.test(normalized)) return "0";
+
+  const [wholeRaw, fractionRaw = ""] = normalized.split(".");
   const whole = BigInt(wholeRaw || "0");
   const fraction = BigInt((fractionRaw.replace(/\D/g, "").slice(0, 18).padEnd(18, "0")) || "0");
   return String(whole * WEI_PER_TOKEN + fraction);

@@ -51,54 +51,10 @@ const ACTIVITY_STORAGE_KEY = "haramball-activity-feed";
 const THEME_STORAGE_KEY = "haramball-theme";
 const TOURNAMENT_STORAGE_KEY = "haramball-tournaments";
 const CURRENT_TOURNAMENT_STORAGE_KEY = "haramball-current-tournament-id";
-const USE_TEMPORARY_BETS = true;
 const ROUND_SECONDS = 5;
 const LOCKOUT_SECONDS = Math.ceil(ROUND_SECONDS * 0.15);
-const TEMPORARY_FALLBACK_FIXTURE = { home: "Argentina", away: "Brazil", label: "Argentina vs Brazil" };
-const TEMPORARY_BETS = [
-  {
-    id: "temp-counter-attack-goal",
-    duelId: "temp-counter-attack-goal",
-    title: "Will this counter attack turn into a goal?",
-    category: "Live match",
-    status: "temporary",
-    optionA: "YES",
-    optionB: "NO",
-  },
-  {
-    id: "temp-freekick-target",
-    duelId: "temp-freekick-target",
-    title: "Will the freekick hit the target?",
-    category: "Live match",
-    status: "temporary",
-    optionA: "YES",
-    optionB: "NO",
-  },
-  {
-    id: "temp-counter-attack-deep",
-    duelId: "temp-counter-attack-deep",
-    title: "Will this counter attack at least enter the opponent dee?",
-    category: "Live match",
-    status: "temporary",
-    optionA: "YES",
-    optionB: "NO",
-  },
-  {
-    id: "temp-penalty-goal",
-    duelId: "temp-penalty-goal",
-    title: "Will this penalty be a goal?",
-    category: "Live match",
-    status: "temporary",
-    optionA: "YES",
-    optionB: "NO",
-  },
-];
 const TOKEN_OPTIONS = [
   { symbol: "USDC", name: "USD Coin", network: "Base", icon: "$" },
-  { symbol: "USDT", name: "Tether USD", network: "Ethereum", icon: "T" },
-  { symbol: "ETH", name: "Ether", network: "Ethereum", icon: "E" },
-  { symbol: "SOL", name: "Solana", network: "Solana", icon: "S" },
-  { symbol: "BTC", name: "Bitcoin", network: "Bitcoin", icon: "B" },
 ];
 const TEAM_FLAGS = {
   Argentina: "\u{1F1E6}\u{1F1F7}",
@@ -133,7 +89,6 @@ function App() {
   const [stake, setStake] = useState("1");
   const [stakeCurrency, setStakeCurrency] = useState("USDC");
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
-  const [tokenDraft, setTokenDraft] = useState("USDC");
   const [tokenSearch, setTokenSearch] = useState("");
   const [pick, setPick] = useState(null);
   const [estimate, setEstimate] = useState(null);
@@ -233,9 +188,6 @@ function App() {
     const timer = window.setInterval(() => {
       const nowSeconds = Math.floor(Date.now() / 1000);
       setElapsedSeconds(nowSeconds % ROUND_SECONDS);
-      if (USE_TEMPORARY_BETS) {
-        setMarketIndex(Math.floor(nowSeconds / ROUND_SECONDS) % TEMPORARY_BETS.length);
-      }
     }, 250);
     return () => window.clearInterval(timer);
   }, []);
@@ -288,25 +240,6 @@ function App() {
 
   useEffect(() => {
     let alive = true;
-    if (USE_TEMPORARY_BETS) {
-      setMarkets(withTemporaryFixture(TEMPORARY_BETS, TEMPORARY_FALLBACK_FIXTURE));
-      setMarketError("");
-      setMarketsLoading(false);
-      setReadiness((value) => ({ ...value, configured: true, missing: [] }));
-      fetchBentoMarkets({ page: 1, limit: 20 })
-        .then((nextMarkets) => {
-          if (!alive) return;
-          const fixtureMarket = nextMarkets.find((item) => item.duelId) || nextMarkets[0];
-          setMarkets(withTemporaryFixture(TEMPORARY_BETS, fixtureFromMarket(fixtureMarket)));
-        })
-        .catch(() => {
-          if (alive) setMarkets(withTemporaryFixture(TEMPORARY_BETS, TEMPORARY_FALLBACK_FIXTURE));
-        });
-      return () => {
-        alive = false;
-      };
-    }
-
     if (!readiness.configured) {
       setMarkets([]);
       setMarketError("");
@@ -543,7 +476,15 @@ function App() {
       const nextPortfolio = await fetchBentoPortfolio({ token, account: managedAccount });
       setPortfolio(nextPortfolio);
       return nextPortfolio;
-    } catch {
+    } catch (error) {
+      setSettlement((value) => ({
+        ...value,
+        title: value.receipt ? "Ticket locked, account refresh delayed" : value.title,
+        body: value.receipt
+          ? `Bento accepted the ticket, but portfolio reconciliation failed: ${error.message}`
+          : value.body,
+      }));
+      showToast("Portfolio refresh failed");
       return null;
     } finally {
       setPortfolioLoading(false);
@@ -662,14 +603,14 @@ function App() {
   };
 
   const openTokenModal = () => {
-    setTokenDraft(stakeCurrency);
     setTokenSearch("");
     setTokenModalOpen(true);
   };
 
   const confirmToken = () => {
-    setStakeCurrency(tokenDraft);
+    setStakeCurrency("USDC");
     setTokenModalOpen(false);
+    showToast("Bets launch in USDC only");
   };
 
   const statusCards = [
@@ -959,9 +900,8 @@ function App() {
           onCancel={() => setTokenModalOpen(false)}
           onConfirm={confirmToken}
           search={tokenSearch}
-          selected={tokenDraft}
           setSearch={setTokenSearch}
-          setSelected={setTokenDraft}
+          selected={stakeCurrency}
         />
       ) : null}
 
@@ -992,6 +932,7 @@ function LeaderboardCard({ loading = false, profiles, wide = false }) {
       <h2>
         <Trophy size={17} />
         Top 5
+        <span className="section-tag">Local cache</span>
       </h2>
       <div className="leaderboard-list">
         {loading ? (
@@ -1244,11 +1185,11 @@ function ProfileBuilder({ draft, setDraft, onSubmit, activeProfile, submitLabel 
             />
           </label>
           <label>
-            <span>Instagram</span>
+            <span>Discord</span>
             <input
               maxLength={32}
               onChange={(event) => setDraft((value) => ({ ...value, discord: event.target.value }))}
-              placeholder="@handle"
+              placeholder="discord handle"
               value={draft.discord}
             />
           </label>
@@ -1453,7 +1394,7 @@ function WalletSkeleton() {
   );
 }
 
-function TokenModal({ onCancel, onConfirm, search, selected, setSearch, setSelected }) {
+function TokenModal({ onCancel, onConfirm, search, selected, setSearch }) {
   const options = TOKEN_OPTIONS.filter((token) => {
     const haystack = `${token.symbol} ${token.name} ${token.network}`.toLowerCase();
     return haystack.includes(search.trim().toLowerCase());
@@ -1465,8 +1406,8 @@ function TokenModal({ onCancel, onConfirm, search, selected, setSearch, setSelec
       <section className="token-modal" role="dialog" aria-modal="true" aria-label="Select token and network">
         <div className="token-modal-head">
           <div>
-            <h2>Select token</h2>
-            <p>Choose network and currency for this ticket.</p>
+            <h2>USDC only</h2>
+            <p>Launch bets are denominated in USDC. Other assets are not live yet.</p>
           </div>
           <button className="profile-icon-button modal-close" onClick={onCancel} type="button">
             <X size={18} />
@@ -1477,16 +1418,23 @@ function TokenModal({ onCancel, onConfirm, search, selected, setSearch, setSelec
           <input autoFocus onChange={(event) => setSearch(event.target.value)} placeholder="Search token or network" value={search} />
         </label>
         <div className="token-list">
-          {options.map((token) => (
-            <button className={token.symbol === selected ? "token-row active" : "token-row"} key={`${token.network}-${token.symbol}`} onClick={() => setSelected(token.symbol)} type="button">
-              <span className="token-icon">{token.icon}</span>
-              <span>
-                <strong>{token.symbol}</strong>
-                <small>{token.name}</small>
-              </span>
-              <b>{token.network}</b>
-            </button>
-          ))}
+          {options.length ? (
+            options.map((token) => (
+              <button className="token-row active" key={`${token.network}-${token.symbol}`} type="button">
+                <span className="token-icon">{token.icon}</span>
+                <span>
+                  <strong>{token.symbol}</strong>
+                  <small>{token.name}</small>
+                </span>
+                <b>{token.network}</b>
+              </button>
+            ))
+          ) : (
+            <div className="wallet-empty">
+              <strong>No other tokens yet</strong>
+              <span>USDC is the only supported bet currency at launch.</span>
+            </div>
+          )}
         </div>
         <div className="token-modal-actions">
           <button className="chip" onClick={onCancel} type="button">Cancel</button>
@@ -1783,19 +1731,6 @@ function buildActivityCells(feed) {
     cells[cellIndex] = Math.min(4, cells[cellIndex] + 1);
   }
   return cells;
-}
-
-function withTemporaryFixture(markets, fixture) {
-  const safeFixture = fixture?.home && fixture?.away ? fixture : TEMPORARY_FALLBACK_FIXTURE;
-  return markets.map((market) => ({
-    ...market,
-    raw: {
-      ...(market.raw || {}),
-      home: safeFixture.home,
-      away: safeFixture.away,
-      fixtureLabel: safeFixture.label,
-    },
-  }));
 }
 
 function fixtureFromMarket(market) {

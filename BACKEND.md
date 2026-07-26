@@ -45,6 +45,27 @@ The `PARLAY_TOURNMENT_URL` spelling matches the hackathon reference repo. The ba
 7. Place the bet through `/api/bento-place-bet`.
 8. Poll `/api/bento-portfolio` until the account reflects the position.
 
+## First-Run Checks
+
+Use readiness before testing wallet or bet flows:
+
+```bash
+npm run dev
+curl http://127.0.0.1:5173/api/bento-readiness
+```
+
+Expected local responses:
+
+- `configured: false` means `.env.local` is missing `BENTO_BUILDER_API_KEY` or `BUILDER_API_KEY`.
+- `configured: true` means the proxy can initialize the Bento SDK with server-side credentials.
+- `/api/bento-markets` should return `{ "markets": [...] }`; if it fails, the JSON error includes the status code and Bento request id when the SDK provides one.
+
+Common fixes:
+
+- Restart Vite after changing `.env.local`; serverless API routes read env at process start.
+- Keep Builder keys out of `VITE_` variables because Vite exposes those to the browser bundle.
+- Use `/api/bento-readiness` first when the UI says the market board needs setup.
+
 ## Legacy TxLINE Routes
 
 The old TxLINE prototype files remain in the repository for reference and tests, but they are no longer the active product path.

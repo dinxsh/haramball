@@ -1266,6 +1266,19 @@ button:disabled {
   gap: 8px;
 }
 
+.section-tag {
+  margin-left: auto;
+  padding: 4px 7px;
+  color: #050507;
+  background: var(--yellow);
+  border: 2px solid #050507;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .result {
   position: relative;
   z-index: 1;

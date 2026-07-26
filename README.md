@@ -24,8 +24,14 @@ Hackathon reference:
 
 ```bash
 npm install
+copy .env.example .env.local
 npm run dev
 ```
+
+Open `http://127.0.0.1:5173` and check `http://127.0.0.1:5173/api/bento-readiness`.
+When `configured` is `false`, add `BENTO_BUILDER_API_KEY` or `BUILDER_API_KEY` to
+`.env.local` and restart the dev server. The Builder key must stay server-side; do
+not create a `VITE_` version of it.
 
 ## Verification
 
