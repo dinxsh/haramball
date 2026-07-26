@@ -59,6 +59,38 @@ export async function fetchLeaderboardUsers() {
   return payload.users || [];
 }
 
+const TERMINAL_MARKET_STATUSES = new Set([
+  "cancelled",
+  "canceled",
+  "closed",
+  "complete",
+  "completed",
+  "ended",
+  "expired",
+  "final",
+  "finalized",
+  "finished",
+  "resolved",
+  "settled",
+]);
+
+export function isBentoMarketEnded(market, now = Date.now()) {
+  if (!market) return false;
+
+  const status = String(market.status || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  if (TERMINAL_MARKET_STATUSES.has(status)) return true;
+
+  const rawEndTime = market.endTime;
+  if (rawEndTime === undefined || rawEndTime === null || rawEndTime === "") return false;
+
+  const numericEndTime = Number(rawEndTime);
+  const endTime = Number.isFinite(numericEndTime)
+    ? numericEndTime < 1e12 ? numericEndTime * 1000 : numericEndTime
+    : Date.parse(rawEndTime);
+
+  return Number.isFinite(endTime) && endTime <= now;
+}
+
 export async function saveLeaderboardUser(user) {
   const payload = await postJson("/api/users", user);
   return payload.user;

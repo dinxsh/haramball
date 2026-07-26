@@ -1,4 +1,5 @@
 import { createBentoSdk, walletAuthProvider } from "@bento.fun/sdk";
+import { buildExplorerCatalog } from "./_explorer.js";
 
 const DEFAULT_BENTO_URL = "https://internal-server.bento.fun";
 
@@ -37,6 +38,30 @@ export async function fetchBentoMarkets({ page = 1, limit = 20 } = {}) {
     raw: payload,
     markets: listFrom(payload?.data ?? payload?.markets ?? payload?.duels ?? payload).map(normalizeBentoMarket),
   };
+}
+
+export async function fetchBentoExplorer({ now = Date.now() } = {}) {
+  const config = requireConfiguredBento();
+  if (!config.tournamentsBaseUrl) {
+    throw httpError(503, "Tournament Explorer requires the tournaments host", true);
+  }
+
+  const sdk = createPublicBentoSdk();
+  if (!sdk.tournaments) {
+    throw httpError(503, "Tournament Explorer is unavailable", true);
+  }
+
+  const payload = await sdk.tournaments.tournaments.list({ limit: 100, offset: 0 });
+  const tournaments = Array.isArray(payload?.tournaments) ? payload.tournaments : [];
+  const items = await buildExplorerCatalog({
+    tournaments,
+    loadTournament: (id) => sdk.tournaments.tournaments.getById(id),
+    loadF1Rounds: (id) => sdk.tournaments.f1.listRounds(id),
+    now,
+    concurrency: 4,
+  });
+
+  return { items };
 }
 
 export async function fetchBentoMarket(duelId) {

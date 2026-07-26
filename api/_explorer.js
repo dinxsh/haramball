@@ -1,0 +1,273 @@
+const TERMINAL_STATUSES = new Set(["completed", "ended", "resolved", "settled"]);
+const REJECTED_STATUSES = new Set(["canceled", "cancelled", "discarded"]);
+const TEST_RECORD_PATTERN = /\b(?:e2e|sdk|test|demo|mock)\b/i;
+
+export function isExplorerCandidate(row = {}) {
+  const status = normalizeStatus(row.status);
+  const identity = [row.name, row.description, row.league].filter(Boolean).join(" ");
+
+  return Boolean(
+    row.id
+    && String(row.name || "").trim()
+    && String(row.sport || "").trim()
+    && !REJECTED_STATUSES.has(status)
+    && !TEST_RECORD_PATTERN.test(identity),
+  );
+}
+
+export async function buildExplorerCatalog({
+  tournaments = [],
+  loadTournament,
+  loadF1Rounds,
+  now = Date.now(),
+  concurrency = 4,
+} = {}) {
+  const candidates = tournaments.filter(isExplorerCandidate);
+  const items = await mapWithConcurrency(candidates, concurrency, async (row) => {
+    const kind = isF1(row) ? "f1" : "tournament";
+    let enrichment = null;
+
+    try {
+      enrichment = kind === "f1"
+        ? await loadF1Rounds(row.id)
+        : await loadTournament(row.id);
+    } catch {
+      if (!TERMINAL_STATUSES.has(normalizeStatus(row.status))) return null;
+    }
+
+    return normalizeExplorerTournament(row, enrichment, now);
+  });
+
+  return uniqueExplorerItems(items.filter(Boolean))
+    .sort((left, right) => statusSortValue(left.status) - statusSortValue(right.status)
+      || dateSortValue(left.startTime) - dateSortValue(right.startTime)
+      || left.name.localeCompare(right.name));
+}
+
+function uniqueExplorerItems(items) {
+  const seen = new Set();
+
+  return items.filter((item) => {
+    const event = item.nextEvent || {};
+    const fingerprint = [
+      item.kind,
+      item.name,
+      item.sport,
+      item.league,
+      item.status,
+      item.startTime,
+      item.endTime,
+      event.gpName || event.title,
+    ].map((value) => String(value || "").trim().toLowerCase()).join("|");
+
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
+}
+
+export function normalizeExplorerTournament(row = {}, enrichment, now = Date.now()) {
+  if (!isExplorerCandidate(row)) return null;
+
+  const kind = isF1(row) ? "f1" : "tournament";
+  const sourceStatus = String(row.status || "").trim();
+  const terminal = TERMINAL_STATUSES.has(normalizeStatus(sourceStatus));
+  const schedule = kind === "f1"
+    ? f1Schedule(enrichment, now, terminal)
+    : tournamentSchedule(enrichment, now, terminal);
+
+  if (!terminal && !schedule) return null;
+
+  const status = terminal ? "ended" : lifecycleFromSchedule(schedule, now);
+  if (!status) return null;
+
+  const nextEvent = schedule?.nextEvent || null;
+  const searchText = [
+    row.name,
+    row.description,
+    row.sport,
+    row.league,
+    row.category,
+    row.format,
+    ...(schedule?.searchValues || []),
+  ].filter(Boolean).join(" ");
+
+  return {
+    id: String(row.id),
+    kind,
+    name: String(row.name).trim(),
+    sport: String(row.sport).trim(),
+    league: String(row.league || "").trim(),
+    status,
+    startTime: schedule?.startTime || null,
+    endTime: schedule?.endTime || null,
+    nextEvent,
+    format: String(row.format || row.gameType || "").trim(),
+    entryCount: finiteNumber(row.entryCount),
+    prizePool: valueOrNull(row.prizePool),
+    stakeAsset: String(row.stakeAsset || row.config?.stakeAsset || "").trim(),
+    searchText,
+    sourceStatus,
+  };
+}
+
+function f1Schedule(enrichment, now, terminal) {
+  const rounds = arrayFrom(enrichment?.rounds ?? enrichment)
+    .map((round) => normalizeF1Round(round))
+    .filter((round) => round.startTime || round.endTime)
+    .sort((left, right) => dateSortValue(left.startTime || left.endTime) - dateSortValue(right.startTime || right.endTime));
+
+  if (!rounds.length) return null;
+
+  const selected = terminal
+    ? rounds.at(-1)
+    : rounds.find((round) => Math.max(parseTime(round.endTime), parseTime(round.startTime)) >= now);
+
+  if (!selected) return null;
+
+  return {
+    startTime: selected.startTime,
+    endTime: selected.endTime,
+    nextEvent: selected,
+    searchValues: [selected.gpName, selected.circuitName, selected.country],
+  };
+}
+
+function normalizeF1Round(round = {}) {
+  const events = arrayFrom(round.events);
+  const qualifying = events.find((event) => String(event.eventType || "").toUpperCase() === "QUALIFYING");
+  const race = events.find((event) => String(event.eventType || "").toUpperCase() === "RACE");
+  const startTime = isoTime(round.startDate || qualifying?.lockTime || race?.lockTime);
+  const endTime = isoTime(race?.lockTime || round.endDate || startTime);
+
+  return {
+    id: String(round.id || ""),
+    roundNumber: finiteNumber(round.roundNumber),
+    gpName: String(round.gpName || "").trim(),
+    circuitName: String(round.circuitName || "").trim(),
+    country: String(round.country || "").trim(),
+    status: String(round.status || "").trim(),
+    qualifyingTime: isoTime(qualifying?.lockTime),
+    raceTime: isoTime(race?.lockTime),
+    startTime,
+    endTime,
+  };
+}
+
+function tournamentSchedule(enrichment, now, terminal) {
+  const stages = arrayFrom(enrichment?.stages);
+  const events = stages.flatMap((stage) => {
+    const markets = arrayFrom(stage.markets ?? stage.fixtures);
+    if (!markets.length) return [normalizeStage(stage)];
+    return markets.map((market) => normalizeTournamentEvent(stage, market));
+  }).filter((event) => event.startTime || event.endTime);
+
+  if (!events.length) return null;
+
+  events.sort((left, right) => dateSortValue(left.startTime || left.endTime) - dateSortValue(right.startTime || right.endTime));
+  const selected = terminal
+    ? events.at(-1)
+    : events.find((event) => Math.max(parseTime(event.endTime), parseTime(event.startTime)) >= now);
+
+  if (!selected) return null;
+
+  return {
+    startTime: selected.startTime,
+    endTime: selected.endTime,
+    nextEvent: selected,
+    searchValues: [selected.title, selected.stageName, ...(selected.teams || [])],
+  };
+}
+
+function normalizeStage(stage = {}) {
+  return {
+    id: String(stage.id || ""),
+    stageId: String(stage.id || ""),
+    stageName: String(stage.stageName || "").trim(),
+    title: String(stage.stageName || "Tournament stage").trim(),
+    teams: [],
+    status: String(stage.status || "").trim(),
+    startTime: isoTime(stage.startTime),
+    lockTime: isoTime(stage.lockTime),
+    endTime: isoTime(stage.endTime || stage.lockTime),
+  };
+}
+
+function normalizeTournamentEvent(stage = {}, event = {}) {
+  return {
+    id: String(event.id || ""),
+    stageId: String(stage.id || ""),
+    stageName: String(stage.stageName || "").trim(),
+    title: String(event.title || stage.stageName || "Tournament fixture").trim(),
+    teams: [event.teamAName, event.teamBName].filter(Boolean).map(String),
+    status: String(event.status || stage.status || "").trim(),
+    startTime: isoTime(event.startTime || stage.startTime),
+    lockTime: isoTime(event.lockTime || stage.lockTime),
+    endTime: isoTime(event.endTime || event.expiryTime || stage.endTime || event.lockTime || stage.lockTime),
+  };
+}
+
+function lifecycleFromSchedule(schedule, now) {
+  const start = parseTime(schedule?.startTime);
+  const end = parseTime(schedule?.endTime);
+  if (start > now) return "upcoming";
+  if (start && start <= now && (!end || end >= now)) return "live";
+  if (!start && end >= now) return "upcoming";
+  return null;
+}
+
+async function mapWithConcurrency(values, concurrency, mapper) {
+  const results = new Array(values.length);
+  let cursor = 0;
+  const workerCount = Math.max(1, Math.min(Number(concurrency) || 1, values.length || 1));
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (cursor < values.length) {
+      const index = cursor++;
+      results[index] = await mapper(values[index], index);
+    }
+  }));
+
+  return results;
+}
+
+function isF1(row) {
+  return String(row.gameType || "").toUpperCase() === "F1_GRID_PREDICTOR"
+    || /^formula\s*1$/i.test(String(row.sport || ""));
+}
+
+function normalizeStatus(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function arrayFrom(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function parseTime(value) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isoTime(value) {
+  const parsed = parseTime(value);
+  return parsed ? new Date(parsed).toISOString() : null;
+}
+
+function dateSortValue(value) {
+  return parseTime(value) || Number.MAX_SAFE_INTEGER;
+}
+
+function statusSortValue(status) {
+  return { upcoming: 0, live: 1, ended: 2 }[status] ?? 3;
+}
+
+function finiteNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function valueOrNull(value) {
+  return value === undefined || value === null || value === "" ? null : String(value);
+}

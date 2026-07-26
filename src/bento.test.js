@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractEstimate, humanToWei, normalizeBentoLogin, weiToHuman } from "./bento.js";
+import { extractEstimate, humanToWei, isBentoMarketEnded, normalizeBentoLogin, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -61,4 +61,21 @@ test("extracts quote fields from Bento estimate response variants", () => {
       },
     },
   );
+});
+
+test("treats terminal Bento market statuses as ended", () => {
+  for (const status of ["ended", "CLOSED", "resolved", "settled", "completed", "finished", "cancelled", "expired"]) {
+    assert.equal(isBentoMarketEnded({ status }), true, status);
+  }
+
+  assert.equal(isBentoMarketEnded({ status: "live" }), false);
+  assert.equal(isBentoMarketEnded({ status: "listed" }), false);
+});
+
+test("treats a market past its API end time as ended", () => {
+  const now = Date.parse("2026-07-27T12:00:00.000Z");
+
+  assert.equal(isBentoMarketEnded({ status: "live", endTime: "2026-07-27T11:59:59.000Z" }, now), true);
+  assert.equal(isBentoMarketEnded({ status: "live", endTime: "2026-07-27T12:00:01.000Z" }, now), false);
+  assert.equal(isBentoMarketEnded({ status: "live", endTime: Math.floor((now - 1000) / 1000) }, now), true);
 });

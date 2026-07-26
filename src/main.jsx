@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Clock3,
   Coins,
+  Compass,
   Flame,
   Gauge,
   Lock,
@@ -33,6 +34,7 @@ import {
   fetchLeaderboardUsers,
   humanToWei,
   initialBentoReadiness,
+  isBentoMarketEnded,
   loginBentoWallet,
   normalizeExternalLogin,
   normalizeBentoLogin,
@@ -41,6 +43,7 @@ import {
   shortAddress,
   weiToHuman,
 } from "./bento";
+import ExplorerModal from "./ExplorerModal.jsx";
 import "./styles.css";
 
 const formatMoney = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(2) : "0.00");
@@ -49,8 +52,6 @@ const PROFILE_STORAGE_KEY = "haramball-world-cup-profiles";
 const ACTIVE_PROFILE_STORAGE_KEY = "haramball-active-profile-id";
 const ACTIVITY_STORAGE_KEY = "haramball-activity-feed";
 const THEME_STORAGE_KEY = "haramball-theme";
-const TOURNAMENT_STORAGE_KEY = "haramball-tournaments";
-const CURRENT_TOURNAMENT_STORAGE_KEY = "haramball-current-tournament-id";
 const ROUND_SECONDS = 5;
 const LOCKOUT_SECONDS = Math.ceil(ROUND_SECONDS * 0.15);
 const TOKEN_OPTIONS = [
@@ -66,12 +67,6 @@ const TEAM_FLAGS = {
   Morocco: "\u{1F1F2}\u{1F1E6}",
   USA: "\u{1F1FA}\u{1F1F8}",
 };
-const DEFAULT_TOURNAMENTS = [
-  { id: "premier-weekend", name: "Premier Weekend", host: "Haramball", visibility: "public", players: 128, inviteCode: "PREM15" },
-  { id: "underdog-cup", name: "Underdog Cup", host: "Community", visibility: "public", players: 64, inviteCode: "DOGS" },
-  { id: "friends-table", name: "Friends Table", host: "Invite only", visibility: "private", players: 12, inviteCode: "MATES" },
-];
-
 function App() {
   const [readiness, setReadiness] = useState(initialBentoReadiness);
   const [markets, setMarkets] = useState([]);
@@ -104,12 +99,7 @@ function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState([]);
   const [profileModalOpen, setProfileModalOpen] = useState(() => !localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY));
-  const [tournamentModalOpen, setTournamentModalOpen] = useState(false);
-  const [tournamentView, setTournamentView] = useState("public");
-  const [tournaments, setTournaments] = useState(loadTournaments);
-  const [currentTournamentId, setCurrentTournamentId] = useState(() => localStorage.getItem(CURRENT_TOURNAMENT_STORAGE_KEY) || DEFAULT_TOURNAMENTS[0].id);
-  const [tournamentDraft, setTournamentDraft] = useState({ name: "", visibility: "public", inviteCode: "" });
-  const [inviteCode, setInviteCode] = useState("");
+  const [explorerOpen, setExplorerOpen] = useState(false);
   const [profileMode, setProfileMode] = useState("onboarding");
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || "classic");
   const [toast, setToast] = useState("");
@@ -124,8 +114,10 @@ function App() {
     receipt: null,
   });
   const reconcileTimer = useRef(null);
+  const explorerButtonRef = useRef(null);
 
   const market = markets[marketIndex] || null;
+  const marketEnded = isBentoMarketEnded(market);
   const amountWei = useMemo(() => humanToWei(stake), [stake]);
   const authed = Boolean(token && authMode === "wallet");
   const optionLabel = pick === 0 ? market?.optionA : pick === 1 ? market?.optionB : "";
@@ -140,7 +132,6 @@ function App() {
       : "Add the server market key, then restart the app to load live match markets.";
   const fixture = useMemo(() => fixtureFromMarket(market), [market]);
   const leagueName = leagueFromMarket(market);
-  const currentTournament = tournaments.find((item) => item.id === currentTournamentId) || tournaments[0] || DEFAULT_TOURNAMENTS[0];
   const selectedToken = TOKEN_OPTIONS.find((item) => item.symbol === stakeCurrency) || TOKEN_OPTIONS[0];
   const leaderboard = useMemo(
     () => dedupeProfiles(profiles).sort((a, b) => b.wins - a.wins || a.losses - b.losses).slice(0, 5),
@@ -167,6 +158,10 @@ function App() {
   const markNotificationsRead = () => {
     setReadNotificationIds(notifications.map((item) => item.id));
   };
+  const closeExplorer = () => {
+    setExplorerOpen(false);
+    window.requestAnimationFrame(() => explorerButtonRef.current?.focus());
+  };
 
   useEffect(() => {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
@@ -175,14 +170,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(feed));
   }, [feed]);
-
-  useEffect(() => {
-    localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(tournaments));
-  }, [tournaments]);
-
-  useEffect(() => {
-    localStorage.setItem(CURRENT_TOURNAMENT_STORAGE_KEY, currentTournamentId);
-  }, [currentTournamentId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -272,15 +259,24 @@ function App() {
   useEffect(() => {
     setPick(null);
     setEstimate(null);
-      setSettlement({
-        tone: "idle",
-        icon: "?",
-        title: market ? "Ready for your pick" : "Choose a match market",
-        body: market ? "Select an outcome to preview the ticket." : "Live match markets will appear here when the board loads.",
-        payout: "--",
-        receipt: null,
-      });
-  }, [market?.duelId]);
+    setSettlement(marketEnded
+      ? {
+          tone: "idle",
+          icon: <Lock size={18} />,
+          title: "Tournament ended",
+          body: "This market is final and read-only.",
+          payout: "Final",
+          receipt: null,
+        }
+      : {
+          tone: "idle",
+          icon: "?",
+          title: market ? "Ready for your pick" : "Choose a match market",
+          body: market ? "Select an outcome to preview the ticket." : "Live match markets will appear here when the board loads.",
+          payout: "--",
+          receipt: null,
+        });
+  }, [market?.duelId, market?.endTime, market?.status, marketEnded]);
 
   useEffect(() => {
     if (!token) return;
@@ -369,6 +365,10 @@ function App() {
 
   const quotePick = async (optionIndex) => {
     if (!market) return;
+    if (marketEnded) {
+      showToast("Tournament has ended");
+      return;
+    }
     if (lockoutActive) {
       showToast("Market is locked for the final 15%");
       return;
@@ -416,6 +416,10 @@ function App() {
   };
 
   const submitBet = async () => {
+    if (marketEnded) {
+      showToast("Tournament has ended");
+      return;
+    }
     if (!market || pick === null || !estimate) {
       showToast("Preview an outcome first");
       return;
@@ -556,50 +560,8 @@ function App() {
     localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, nextProfile.id);
     setProfileDraft({ name: "", username: "", team: profileDraft.team, style: profileDraft.style, twitter: "", discord: "" });
     setProfileModalOpen(false);
-    if (!existing && profileMode === "onboarding") {
-      setTournamentModalOpen(true);
-      setTournamentView("public");
-    }
     setFeed((items) => [{ minute: timeStamp(), label: existing ? `${cleanName} updated their fan profile` : `${cleanName} joined the leaderboard` }, ...items].slice(0, 6));
     showToast(existing ? "Profile updated" : "Profile created");
-  };
-
-  const joinTournament = (tournament) => {
-    setCurrentTournamentId(tournament.id);
-    showToast(`Joined ${tournament.name}`);
-    setTournamentModalOpen(false);
-  };
-
-  const joinInviteTournament = () => {
-    const code = inviteCode.trim().toUpperCase();
-    const tournament = tournaments.find((item) => item.inviteCode.toUpperCase() === code);
-    if (!tournament) {
-      showToast("Invite code not found");
-      return;
-    }
-    joinTournament(tournament);
-  };
-
-  const createTournament = (event) => {
-    event.preventDefault();
-    const cleanName = tournamentDraft.name.trim();
-    if (!cleanName) {
-      showToast("Add a tournament name");
-      return;
-    }
-    const nextTournament = {
-      id: `${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
-      name: cleanName,
-      host: activeProfile?.username ? `@${activeProfile.username}` : activeProfile?.name || "You",
-      visibility: tournamentDraft.visibility,
-      players: 1,
-      inviteCode: (tournamentDraft.inviteCode || cleanName.slice(0, 5)).replace(/[^a-z0-9]/gi, "").toUpperCase() || "PLAY",
-    };
-    setTournaments((items) => [nextTournament, ...items]);
-    setCurrentTournamentId(nextTournament.id);
-    setTournamentDraft({ name: "", visibility: "public", inviteCode: "" });
-    setTournamentModalOpen(false);
-    showToast("Tournament created");
   };
 
   const openTokenModal = () => {
@@ -651,10 +613,9 @@ function App() {
               <ProfileActivityCard activeProfile={routeProfile} fallbackToFirst={false} feed={feed} loading={profilesLoading} profiles={leaderboard} />
               <LeaderboardCard loading={profilesLoading} profiles={leaderboard} />
             </section>
-          </div>
-        </section>
-        <aside className="desktop-panel">
-          <LeaderboardCard loading={profilesLoading} profiles={leaderboard} wide />
+        </div>
+      </section>
+      <aside className="desktop-panel">
           <ProfileActivityCard activeProfile={routeProfile} fallbackToFirst={false} feed={feed} loading={profilesLoading} profiles={leaderboard} wide />
         </aside>
         <div className={toast ? "toast show" : "toast"}>{toast}</div>
@@ -672,6 +633,19 @@ function App() {
                 <span className="brand-wordmark">haramball.xyz</span>
               </div>
               <div className="topbar-actions">
+                <button
+                  className="explorer-nav-button"
+                  onClick={() => setExplorerOpen(true)}
+                  ref={explorerButtonRef}
+                  type="button"
+                >
+                  <Compass size={17} />
+                  <span>Explore</span>
+                </button>
+                {marketEnded ? (
+                  <span className="ended-badge"><Lock size={14} /> Ended</span>
+                ) : (
+                <>
                 <div className="notification-menu-wrap">
                   <button className="notification-button" onClick={() => setNotificationsOpen((value) => !value)} type="button" aria-label="Notifications">
                     <Bell size={18} />
@@ -719,47 +693,55 @@ function App() {
                   </div>
                 ) : null}
                 </div>
+                </>
+              )}
               </div>
             </nav>
 
             <div className="scoreline">
               {marketsLoading ? (
                 <HeroSkeleton />
-              ) : (
+              ) : market ? (
                 <>
                   <Team name={fixture.home} />
                   <div className="score">v/s</div>
                   <Team name={fixture.away} align="right" />
                 </>
+              ) : (
+                <div className="hero-empty-state">No live market data</div>
               )}
             </div>
-            <div className="market-context" aria-label="Market context">
-              <b>{leagueName} - {currentTournament.name}</b>
-            </div>
+            {market && (leagueName || marketEnded) ? (
+              <div className="market-context" aria-label="Market context">
+                <b>{[leagueName, marketEnded ? "Ended" : "Live"].filter(Boolean).join(" - ")}</b>
+              </div>
+            ) : null}
 
           </header>
 
           <section className="play-stack">
             {marketError ? <p className="state-note">{marketError}</p> : null}
 
-            <article className="cycle-card is-action">
+            <article className={`cycle-card ${marketEnded ? "is-ended" : "is-action"}`}>
               <div className="timer-block">
                 <div className="timer-label">
-                  <span>{lockoutActive ? "Market locked" : "Lock closes in"}</span>
-                  <b>{secondsRemaining}s</b>
+                  <span>{marketEnded ? "Tournament ended" : lockoutActive ? "Market locked" : "Lock closes in"}</span>
+                  <b>{marketEnded ? "Final" : `${secondsRemaining}s`}</b>
                 </div>
                 <div className="progress-track">
-                  <span className={lockoutActive ? "is-locked" : ""} style={{ width: `${progressPercent}%` }} />
+                  <span className={marketEnded || lockoutActive ? "is-locked" : ""} style={{ width: marketEnded ? "100%" : `${progressPercent}%` }} />
                 </div>
               </div>
 
               {marketsLoading ? <MarketQuestionSkeleton /> : (
                 <div className="question-block">
                   <h1>{marketTitle}</h1>
-                  <p>{marketBody}</p>
+                  <p>{marketEnded ? "This tournament has ended. The market is shown for reference only." : marketBody}</p>
                 </div>
               )}
 
+              {!marketEnded ? (
+                <>
               <div className="stake-block">
                 <div className="stake-label">
                   <span>Stake</span>
@@ -815,8 +797,20 @@ function App() {
                   {placing ? <SkeletonLine width="104px" /> : "Lock Ticket"}
                 </button>
               </div>
+                </>
+              ) : (
+                <div className="ended-market-notice" role="status">
+                  <Lock size={20} />
+                  <div>
+                    <strong>Read-only result</strong>
+                    <span>No bets, previews, cached activity, or mock tournament data are shown.</span>
+                  </div>
+                </div>
+              )}
             </article>
 
+            {!marketEnded ? (
+              <>
             <SettlementCard
               estimate={estimate}
               estimateLoading={estimateLoading}
@@ -829,11 +823,21 @@ function App() {
             />
             <FeedCard feed={feed} loading={portfolioLoading} portfolio={portfolio} />
             <LeaderboardCard loading={profilesLoading} profiles={leaderboard} />
+              </>
+            ) : null}
           </section>
         </div>
       </section>
 
       <aside className="desktop-panel">
+        {marketEnded ? (
+          <section className="intro-panel ended-desktop-panel">
+            <div className="eyebrow"><Lock size={16} /> Final</div>
+            <h2>This tournament has ended.</h2>
+            <p>The live controls and locally cached activity are hidden. Only current API market details remain visible.</p>
+          </section>
+        ) : (
+          <>
         <section className="intro-panel">
           <div className="eyebrow">
             <Flame size={16} />
@@ -872,11 +876,12 @@ function App() {
           </div>
         </section>
 
-        <LeaderboardCard loading={profilesLoading} profiles={leaderboard} wide />
         <ProfileActivityCard activeProfile={activeProfile} feed={feed} loading={profilesLoading} profiles={leaderboard} wide />
+          </>
+        )}
       </aside>
 
-      {profileModalOpen ? (
+      {profileModalOpen && !marketEnded ? (
         <OnboardingModal
           activeProfile={activeProfile}
           authMode={authMode}
@@ -895,7 +900,7 @@ function App() {
         />
       ) : null}
 
-      {tokenModalOpen ? (
+      {tokenModalOpen && !marketEnded ? (
         <TokenModal
           onCancel={() => setTokenModalOpen(false)}
           onConfirm={confirmToken}
@@ -905,21 +910,7 @@ function App() {
         />
       ) : null}
 
-      {tournamentModalOpen ? (
-        <TournamentModal
-          createTournament={createTournament}
-          draft={tournamentDraft}
-          inviteCode={inviteCode}
-          joinInviteTournament={joinInviteTournament}
-          joinTournament={joinTournament}
-          onClose={() => setTournamentModalOpen(false)}
-          setDraft={setTournamentDraft}
-          setInviteCode={setInviteCode}
-          setView={setTournamentView}
-          tournaments={tournaments}
-          view={tournamentView}
-        />
-      ) : null}
+      <ExplorerModal onClose={closeExplorer} open={explorerOpen} />
 
       <div className={toast ? "toast show" : "toast"}>{toast}</div>
     </main>
@@ -1447,98 +1438,6 @@ function TokenModal({ onCancel, onConfirm, search, selected, setSearch }) {
   );
 }
 
-function TournamentModal({
-  createTournament,
-  draft,
-  inviteCode,
-  joinInviteTournament,
-  joinTournament,
-  onClose,
-  setDraft,
-  setInviteCode,
-  setView,
-  tournaments,
-  view,
-}) {
-  const visibleTournaments = view === "invite"
-    ? tournaments.filter((item) => item.visibility === "private")
-    : tournaments.filter((item) => item.visibility === "public");
-
-  return (
-    <div className="modal-backdrop tournament-modal-backdrop" role="presentation">
-      <section className="tournament-modal" role="dialog" aria-modal="true" aria-label="Choose a tournament">
-        <div className="tournament-hero">
-          <div>
-            <span className="category">Next up</span>
-            <h2>Join a tournament</h2>
-            <p>Create your own room or jump into a public board.</p>
-          </div>
-          <button className="profile-icon-button modal-close" onClick={onClose} type="button">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="tournament-tabs" role="tablist" aria-label="Tournament mode">
-          {[
-            ["public", "Public"],
-            ["invite", "Invite"],
-            ["create", "Create"],
-          ].map(([id, label]) => (
-            <button className={view === id ? "active" : ""} key={id} onClick={() => setView(id)} type="button">
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {view === "create" ? (
-          <form className="tournament-create" onSubmit={createTournament}>
-            <label>
-              <span>Tournament name</span>
-              <input onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))} placeholder="Friday five-a-side" value={draft.name} />
-            </label>
-            <label>
-              <span>Visibility</span>
-              <select onChange={(event) => setDraft((value) => ({ ...value, visibility: event.target.value }))} value={draft.visibility}>
-                <option value="public">Public</option>
-                <option value="private">Invite code</option>
-              </select>
-            </label>
-            <label>
-              <span>Invite code</span>
-              <input onChange={(event) => setDraft((value) => ({ ...value, inviteCode: event.target.value }))} placeholder="Optional" value={draft.inviteCode} />
-            </label>
-            <button className="activate-button" type="submit">
-              <Trophy size={17} />
-              Create Tournament
-            </button>
-          </form>
-        ) : (
-          <>
-            {view === "invite" ? (
-              <div className="invite-code-row">
-                <input onChange={(event) => setInviteCode(event.target.value)} placeholder="Enter invite code" value={inviteCode} />
-                <button className="activate-button" onClick={joinInviteTournament} type="button">Join</button>
-              </div>
-            ) : null}
-            <div className="tournament-list">
-              {visibleTournaments.map((tournament) => (
-                <article className="tournament-row" key={tournament.id}>
-                  <span className="rank"><Trophy size={15} /></span>
-                  <div>
-                    <strong>{tournament.name}</strong>
-                    <small>{tournament.host} - {tournament.players} players - {tournament.visibility}</small>
-                  </div>
-                  <button onClick={() => joinTournament(tournament)} type="button">Join</button>
-                </article>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-    </div>
-  );
-}
-
 function SkeletonBox({ className = "" }) {
   return <span className={`skeleton-box ${className}`} aria-hidden="true" />;
 }
@@ -1680,15 +1579,6 @@ function loadActivityFeed() {
   }
 }
 
-function loadTournaments() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(TOURNAMENT_STORAGE_KEY) || "null");
-    return Array.isArray(stored) && stored.length ? stored : DEFAULT_TOURNAMENTS;
-  } catch {
-    return DEFAULT_TOURNAMENTS;
-  }
-}
-
 function normalizeProfile(profile = {}) {
   const [recordWins, recordLosses] = String(profile.record || "").split("-");
   const wins = numberOr(profile.wins, recordWins, 0);
@@ -1768,7 +1658,7 @@ function cleanTeamName(value) {
 
 function leagueFromMarket(market) {
   const rawLeague = market?.league || market?.raw?.league || market?.raw?.leagueName || market?.raw?.tournament || market?.raw?.competition;
-  const fallback = market?.category && !/^football$/i.test(market.category) ? market.category : "League";
+  const fallback = market?.category && !/^(football|prediction)$/i.test(market.category) ? market.category : "";
   return rawLeague || fallback;
 }
 

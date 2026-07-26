@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bentoReadinessPayload, getBentoServerConfig, normalizeBentoMarket } from "./_bento.js";
+import { bentoReadinessPayload, fetchBentoExplorer, getBentoServerConfig, normalizeBentoMarket } from "./_bento.js";
 
 test("Bento readiness reports missing builder key without exposing secrets", () => {
   const previousKey = process.env.BENTO_BUILDER_API_KEY;
@@ -71,6 +71,21 @@ test("normalizes Bento market list rows around duelId and option labels", () => 
       },
     },
   );
+});
+
+test("Explorer requires a configured tournaments host without returning fallback data", async () => {
+  const previousKey = process.env.BENTO_BUILDER_API_KEY;
+  const previousTournaments = process.env.PARLAY_TOURNMENT_URL;
+  process.env.BENTO_BUILDER_API_KEY = "bnt_test";
+  delete process.env.PARLAY_TOURNMENT_URL;
+
+  await assert.rejects(
+    fetchBentoExplorer(),
+    (error) => error.statusCode === 503 && /tournaments host/i.test(error.message),
+  );
+
+  restoreEnv("BENTO_BUILDER_API_KEY", previousKey);
+  restoreEnv("PARLAY_TOURNMENT_URL", previousTournaments);
 });
 
 function restoreEnv(key, value) {
