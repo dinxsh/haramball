@@ -15,6 +15,26 @@ export function isExplorerCandidate(row = {}) {
   );
 }
 
+export function tournamentSlug(row = {}) {
+  const name = String(row.name || "tournament")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "tournament";
+  const idPrefix = String(row.id || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 8);
+  return idPrefix ? `${name}-${idPrefix}` : name;
+}
+
+export function resolveTournamentSlug(tournaments = [], slug = "") {
+  const idPrefix = String(slug).toLowerCase().split("-").at(-1);
+  if (!/^[a-z0-9]{8}$/.test(idPrefix)) return null;
+
+  const matches = tournaments.filter((row) => isExplorerCandidate(row)
+    && String(row.id).toLowerCase().replace(/[^a-z0-9]+/g, "").startsWith(idPrefix));
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export async function buildExplorerCatalog({
   tournaments = [],
   loadTournament,
@@ -38,32 +58,35 @@ export async function buildExplorerCatalog({
     return normalizeExplorerTournament(row, enrichment, now);
   });
 
-  return uniqueExplorerItems(items.filter(Boolean))
-    .sort((left, right) => statusSortValue(left.status) - statusSortValue(right.status)
-      || dateSortValue(left.startTime) - dateSortValue(right.startTime)
-      || left.name.localeCompare(right.name));
+  return uniqueExplorerItems(items.filter(Boolean));
 }
 
 function uniqueExplorerItems(items) {
   const seen = new Set();
 
-  return items.filter((item) => {
-    const event = item.nextEvent || {};
-    const fingerprint = [
-      item.kind,
-      item.name,
-      item.sport,
-      item.league,
-      item.status,
-      item.startTime,
-      item.endTime,
-      event.gpName || event.title,
-    ].map((value) => String(value || "").trim().toLowerCase()).join("|");
-
-    if (seen.has(fingerprint)) return false;
-    seen.add(fingerprint);
+  return [...items].sort(compareExplorerItems).filter((item) => {
+    const key = competitionKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
+}
+
+function competitionKey(item) {
+  const competition = item.league || item.name;
+  return [item.sport, competition]
+    .map((value) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, ""))
+    .join("|");
+}
+
+function compareExplorerItems(left, right) {
+  const statusDifference = statusSortValue(left.status) - statusSortValue(right.status);
+  if (statusDifference) return statusDifference;
+
+  const leftDate = dateSortValue(left.endTime || left.startTime);
+  const rightDate = dateSortValue(right.endTime || right.startTime);
+  const dateDifference = left.status === "ended" ? rightDate - leftDate : leftDate - rightDate;
+  return dateDifference || left.name.localeCompare(right.name);
 }
 
 export function normalizeExplorerTournament(row = {}, enrichment, now = Date.now()) {
@@ -94,6 +117,7 @@ export function normalizeExplorerTournament(row = {}, enrichment, now = Date.now
 
   return {
     id: String(row.id),
+    slug: tournamentSlug(row),
     kind,
     name: String(row.name).trim(),
     sport: String(row.sport).trim(),
@@ -260,7 +284,7 @@ function dateSortValue(value) {
 }
 
 function statusSortValue(status) {
-  return { upcoming: 0, live: 1, ended: 2 }[status] ?? 3;
+  return { live: 0, upcoming: 1, ended: 2 }[status] ?? 3;
 }
 
 function finiteNumber(value) {

@@ -17,9 +17,10 @@ import {
   filterExplorerItems,
   formatExplorerDate,
   formatExplorerPrize,
+  preloadExplorerItems,
 } from "./explorer.js";
 
-const STATUS_FILTERS = ["All", "upcoming", "live", "ended"];
+const STATUS_FILTERS = ["All", "live", "upcoming", "ended"];
 
 export default function ExplorerModal({ onClose, open }) {
   const [items, setItems] = useState([]);
@@ -47,7 +48,7 @@ export default function ExplorerModal({ onClose, open }) {
     setError("");
 
     try {
-      const nextItems = await fetchExplorerItems();
+      const nextItems = await fetchExplorerItems({ refresh });
       if (requestId !== requestIdRef.current) return;
       setItems(nextItems);
       setLoaded(true);
@@ -61,6 +62,16 @@ export default function ExplorerModal({ onClose, open }) {
       if (requestId === requestIdRef.current) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    preloadExplorerItems().then((nextItems) => {
+      if (!active) return;
+      setItems(nextItems);
+      setLoaded(true);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (open && !loaded && !loading && !error) load();
@@ -135,36 +146,48 @@ export default function ExplorerModal({ onClose, open }) {
           </label>
           <button className="explorer-refresh" disabled={loading} onClick={() => load({ refresh: true })} type="button">
             <RefreshCw className={loading ? "is-spinning" : ""} size={16} />
-            Refresh
+            <span>Refresh</span>
           </button>
         </div>
 
-        <div className="explorer-filter-group" aria-label="Filter by sport">
-          {sports.map((item) => (
-            <button
-              aria-pressed={sport === item}
-              className={sport === item ? "active" : ""}
-              key={item}
-              onClick={() => setSport(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-
-        <div className="explorer-filter-group status" aria-label="Filter by tournament status">
-          {STATUS_FILTERS.map((item) => (
-            <button
-              aria-pressed={status === item}
-              className={status === item ? "active" : ""}
-              key={item}
-              onClick={() => setStatus(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
+        <div className="explorer-filter-bar">
+          <div className="explorer-filter-scroll">
+            <div className="explorer-filter-group" aria-label="Filter by sport" role="group">
+              <span>Sport</span>
+              {sports.map((item) => (
+                <button
+                  aria-pressed={sport === item}
+                  className={sport === item ? "active" : ""}
+                  key={item}
+                  onClick={() => setSport(item)}
+                  type="button"
+                >
+                  {item === "All" ? "All sports" : item}
+                </button>
+              ))}
+            </div>
+            <div className="explorer-filter-divider" aria-hidden="true" />
+            <div className="explorer-filter-group status" aria-label="Filter by tournament status" role="group">
+              <span>Status</span>
+              {STATUS_FILTERS.map((item) => (
+                <button
+                  aria-pressed={status === item}
+                  className={status === item ? "active" : ""}
+                  key={item}
+                  onClick={() => setStatus(item)}
+                  type="button"
+                >
+                  {item === "All" ? "All status" : item}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="explorer-filter-summary">
+            <b>{loading && !loaded ? "Checking catalog" : `${visibleItems.length} ${visibleItems.length === 1 ? "competition" : "competitions"}`}</b>
+            {query || sport !== "All" || status !== "All" ? (
+              <button onClick={() => { setQuery(""); setSport("All"); setStatus("All"); }} type="button">Clear filters</button>
+            ) : null}
+          </div>
         </div>
 
         <div className="explorer-results" aria-busy={loading} aria-live="polite">
@@ -201,34 +224,45 @@ function ExplorerCard({ expanded, item, onToggle }) {
   const dateLabel = formatExplorerDate(item.startTime);
   const isF1 = item.kind === "f1";
   const isEnded = item.status === "ended";
-  const showSchedule = isEnded || expanded;
+  const showSchedule = !isEnded && expanded;
+  const hasStats = Boolean(item.format || item.entryCount > 0 || prize);
+  const dateCaption = isEnded ? "Final event" : item.status === "live" ? "In progress" : "Next event";
 
   return (
     <article className={`explorer-card ${item.status} ${showSchedule ? "expanded" : ""}`}>
       <div className="explorer-card-stripe" aria-hidden="true" />
-      <div className="explorer-card-main">
-        <div className="explorer-card-copy">
-          <div className="explorer-card-meta">
-            <span>{isF1 ? <Flag size={13} /> : <Trophy size={13} />}{item.sport}</span>
-            {item.league ? <span>{item.league}</span> : null}
-            <b className={`explorer-status ${item.status}`}>{item.status === "ended" ? <Lock size={11} /> : null}{item.status}</b>
+      <a className="explorer-card-link" href={`/tournaments/${item.slug}`}>
+        <div className="explorer-card-main">
+          <div className="explorer-card-copy">
+            <div className="explorer-card-meta">
+              <span>{isF1 ? <Flag size={13} /> : <Trophy size={13} />}{item.sport}</span>
+              {item.league ? <span>{item.league}</span> : null}
+              <b className={`explorer-status ${item.status}`}>{item.status === "ended" ? <Lock size={11} /> : null}{item.status}</b>
+            </div>
+            <h3>{item.name}</h3>
+            {item.nextEvent?.title || item.nextEvent?.gpName ? (
+              <p>{item.nextEvent.gpName || item.nextEvent.title}</p>
+            ) : null}
           </div>
-          <h3>{item.name}</h3>
-          {item.nextEvent?.title || item.nextEvent?.gpName ? (
-            <p>{item.nextEvent.gpName || item.nextEvent.title}</p>
-          ) : null}
+          <div className="explorer-card-date">
+            <CalendarDays size={17} />
+            <div>
+              <small>{dateCaption}</small>
+              {dateLabel ? <time dateTime={item.startTime}>{dateLabel}</time> : <span>No date from Bento</span>}
+            </div>
+          </div>
         </div>
-        <div className="explorer-card-date">
-          <CalendarDays size={17} />
-          {dateLabel ? <time dateTime={item.startTime}>{dateLabel}</time> : <span>Final record</span>}
-        </div>
-      </div>
 
-      <div className="explorer-card-stats">
-        {item.format ? <span><small>Format</small><b>{humanize(item.format)}</b></span> : null}
-        <span><small>Entries</small><b>{item.entryCount}</b></span>
-        {prize ? <span><small>Pool</small><b>{prize}</b></span> : null}
-      </div>
+        {hasStats ? (
+          <div className="explorer-card-stats">
+            {item.format ? <span><small>Format</small><b>{humanize(item.format)}</b></span> : null}
+            {item.entryCount > 0 ? <span><small>Entries</small><b>{item.entryCount}</b></span> : null}
+            {prize ? <span><small>Pool</small><b>{prize}</b></span> : null}
+          </div>
+        ) : null}
+
+        {isEnded ? <div className="explorer-card-lockline"><Lock size={13} /> Archived schedule <span>Open tournament</span></div> : null}
+      </a>
 
       {!isEnded ? (
         <button className="explorer-schedule-toggle" aria-expanded={expanded} onClick={onToggle} type="button">
@@ -239,7 +273,6 @@ function ExplorerCard({ expanded, item, onToggle }) {
 
       {showSchedule ? (
         <div className="explorer-schedule">
-          {isEnded ? <div className="explorer-readonly"><Lock size={14} /> Final schedule - read only</div> : null}
           {isF1 ? <F1Schedule event={item.nextEvent} /> : <TournamentSchedule event={item.nextEvent} />}
         </div>
       ) : null}
@@ -274,8 +307,18 @@ function TournamentSchedule({ event }) {
 function ExplorerLoading() {
   return (
     <div className="explorer-loading" role="status">
-      <span>Checking Bento tournaments</span>
-      {[0, 1, 2].map((item) => <div className="explorer-loading-card" key={item} />)}
+      <span className="sr-only">Checking Bento tournaments</span>
+      {[0, 1, 2].map((item) => (
+        <div className="explorer-loading-card" key={item}>
+          <i className="explorer-skeleton-stripe" />
+          <div className="explorer-skeleton-copy">
+            <i className="short" />
+            <i className="title" />
+            <i className="medium" />
+          </div>
+          <i className="explorer-skeleton-date" />
+        </div>
+      ))}
     </div>
   );
 }

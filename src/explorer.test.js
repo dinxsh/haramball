@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as explorerModule from "./explorer.js";
 import { explorerSports, filterExplorerItems, formatExplorerPrize } from "./explorer.js";
 
 const items = [
@@ -63,7 +64,7 @@ test("derives prioritized sports from valid catalog items", () => {
 test("filters lifecycle and orders nearest dates first", () => {
   assert.deepEqual(
     filterExplorerItems(items, { query: "", sport: "All", status: "All" }).map((item) => item.id),
-    ["football-ended", "football-live", "f1-14", "cricket"],
+    ["football-live", "f1-14", "cricket", "football-ended"],
   );
   assert.deepEqual(
     filterExplorerItems(items, { query: "", sport: "Football", status: "ended" }).map((item) => item.id),
@@ -74,4 +75,84 @@ test("filters lifecycle and orders nearest dates first", () => {
 test("formats Bento base-unit prize pools without floating point loss", () => {
   assert.equal(formatExplorerPrize("25000000000000000000", "usdc"), "25 USDC");
   assert.equal(formatExplorerPrize(null, "credits"), "");
+});
+
+test("prefetch shares one request with modal loading and refresh bypasses the cache", async () => {
+  assert.equal(typeof explorerModule.preloadExplorerItems, "function");
+
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  let releaseRequest;
+  const requestGate = new Promise((resolve) => { releaseRequest = resolve; });
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    await requestGate;
+    return { ok: true, json: async () => ({ items: [items[0]] }) };
+  };
+
+  try {
+    const preload = explorerModule.preloadExplorerItems();
+    const modalLoad = explorerModule.fetchExplorerItems();
+    assert.equal(fetchCount, 1);
+    releaseRequest();
+    assert.deepEqual(await preload, [items[0]]);
+    assert.deepEqual(await modalLoad, [items[0]]);
+
+    await explorerModule.fetchExplorerItems();
+    assert.equal(fetchCount, 1);
+
+    await explorerModule.fetchExplorerItems({ refresh: true });
+    assert.equal(fetchCount, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a failed prefetch leaves the modal load free to retry", async () => {
+  assert.equal(typeof explorerModule.resetExplorerCache, "function");
+  explorerModule.resetExplorerCache();
+
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    if (fetchCount === 1) throw new Error("temporary outage");
+    return { ok: true, json: async () => ({ items: [items[1]] }) };
+  };
+
+  try {
+    await assert.rejects(explorerModule.preloadExplorerItems(), /temporary outage/);
+    assert.deepEqual(await explorerModule.fetchExplorerItems(), [items[1]]);
+    assert.equal(fetchCount, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("parses canonical tournament paths without treating other routes as tournaments", () => {
+  assert.equal(
+    explorerModule.tournamentSlugFromPath("/tournaments/world-cup-tournament-c774b2e1"),
+    "world-cup-tournament-c774b2e1",
+  );
+  assert.equal(explorerModule.tournamentSlugFromPath("/profiles/dinesh"), "");
+  assert.equal(explorerModule.tournamentSlugFromPath("/tournaments/"), "");
+});
+
+test("fetches details for the selected tournament slug", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return { ok: true, json: async () => ({ tournament: { slug: "world-cup-c774b2e1" } }) };
+  };
+
+  try {
+    assert.deepEqual(
+      await explorerModule.fetchTournamentDetail("world-cup-c774b2e1"),
+      { slug: "world-cup-c774b2e1" },
+    );
+    assert.equal(requestedUrl, "/api/tournament?slug=world-cup-c774b2e1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

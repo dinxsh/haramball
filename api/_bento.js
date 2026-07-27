@@ -1,5 +1,6 @@
 import { createBentoSdk, walletAuthProvider } from "@bento.fun/sdk";
-import { buildExplorerCatalog } from "./_explorer.js";
+import { buildExplorerCatalog, normalizeExplorerTournament, resolveTournamentSlug } from "./_explorer.js";
+import { normalizeTournamentDetail } from "./_tournament.js";
 
 const DEFAULT_BENTO_URL = "https://internal-server.bento.fun";
 
@@ -62,6 +63,49 @@ export async function fetchBentoExplorer({ now = Date.now() } = {}) {
   });
 
   return { items };
+}
+
+export async function fetchBentoTournament(slug, { now = Date.now() } = {}) {
+  const config = requireConfiguredBento();
+  if (!config.tournamentsBaseUrl) {
+    throw httpError(503, "Tournament details require the tournaments host", true);
+  }
+
+  const sdk = createPublicBentoSdk();
+  const payload = await sdk.tournaments.tournaments.list({ limit: 100, offset: 0 });
+  const tournaments = Array.isArray(payload?.tournaments) ? payload.tournaments : [];
+  const source = resolveTournamentSlug(tournaments, slug);
+  if (!source) throw httpError(404, "Verified tournament not found", true);
+
+  const isF1 = String(source.gameType || "").toUpperCase() === "F1_GRID_PREDICTOR"
+    || /^formula\s*1$/i.test(String(source.sport || ""));
+  let detail;
+  let sourceDetail = source;
+  let leaderboard = null;
+
+  if (isF1) {
+    const [tournamentPayload, roundsPayload, leaderboardPayload] = await Promise.all([
+      sdk.tournaments.f1.getTournament(source.id).catch(() => null),
+      sdk.tournaments.f1.listRounds(source.id),
+      sdk.tournaments.f1.getSeasonLeaderboard(source.id).catch(() => null),
+    ]);
+    sourceDetail = { ...source, ...(tournamentPayload?.tournament || tournamentPayload || {}) };
+    detail = roundsPayload;
+    leaderboard = leaderboardPayload;
+  } else {
+    [detail, leaderboard] = await Promise.all([
+      sdk.tournaments.tournaments.getById(source.id),
+      sdk.tournaments.tournaments.getLeaderboard(source.id, { limit: 50 }).catch(() => null),
+    ]);
+    sourceDetail = { ...source, ...(detail?.tournament || {}) };
+  }
+
+  const item = normalizeExplorerTournament(source, detail, now);
+  if (!item) throw httpError(404, "Verified tournament is unavailable", true);
+
+  return {
+    tournament: normalizeTournamentDetail({ item, source: sourceDetail, detail, leaderboard }),
+  };
 }
 
 export async function fetchBentoMarket(duelId) {

@@ -44,6 +44,8 @@ import {
   weiToHuman,
 } from "./bento";
 import ExplorerModal from "./ExplorerModal.jsx";
+import TournamentPage from "./TournamentPage.jsx";
+import { tournamentSlugFromPath } from "./explorer.js";
 import "./styles.css";
 
 const formatMoney = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(2) : "0.00");
@@ -67,7 +69,7 @@ const TEAM_FLAGS = {
   Morocco: "\u{1F1F2}\u{1F1E6}",
   USA: "\u{1F1FA}\u{1F1F8}",
 };
-function App() {
+function MarketApp() {
   const [readiness, setReadiness] = useState(initialBentoReadiness);
   const [markets, setMarkets] = useState([]);
   const [marketsLoading, setMarketsLoading] = useState(true);
@@ -915,6 +917,11 @@ function App() {
       <div className={toast ? "toast show" : "toast"}>{toast}</div>
     </main>
   );
+}
+
+function App() {
+  const tournamentSlug = tournamentSlugFromPath(window.location.pathname);
+  return tournamentSlug ? <TournamentPage slug={tournamentSlug} /> : <MarketApp />;
 }
 
 function LeaderboardCard({ loading = false, profiles, wide = false }) {

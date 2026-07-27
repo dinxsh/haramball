@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildExplorerCatalog } from "./_explorer.js";
+import { buildExplorerCatalog, resolveTournamentSlug, tournamentSlug } from "./_explorer.js";
 
 const NOW = Date.parse("2026-07-27T00:00:00.000Z");
 
@@ -29,6 +29,16 @@ const f1Season = {
   prizePool: "25000000000000000000",
   stakeAsset: "usdc",
 };
+
+test("builds readable ID-backed slugs and resolves only verified tournaments", () => {
+  const tournament = { ...completedFootball, id: "c774b2e1ba9b65f845745eca" };
+  const slug = tournamentSlug(tournament);
+
+  assert.equal(slug, "world-cup-tournament-c774b2e1");
+  assert.equal(resolveTournamentSlug([tournament], slug)?.id, tournament.id);
+  assert.equal(resolveTournamentSlug([{ ...tournament, name: "Test World Cup" }], "test-world-cup-c774b2e1"), null);
+  assert.equal(resolveTournamentSlug([tournament], "world-cup-tournament-deadbeef"), null);
+});
 
 test("curates real football and F1 records without test or canceled data", async () => {
   const items = await buildExplorerCatalog({
@@ -69,6 +79,7 @@ test("curates real football and F1 records without test or canceled data", async
 
   assert.deepEqual(items.map((item) => item.name), ["F1 2026 Grid Predictor", "World Cup Tournament"]);
   assert.equal(items[0].kind, "f1");
+  assert.equal(items[0].slug, "f1-2026-grid-predictor-f1season");
   assert.equal(items[0].status, "upcoming");
   assert.equal(items[0].nextEvent.gpName, "Dutch Grand Prix");
   assert.equal(items[0].nextEvent.raceTime, "2026-08-23T12:00:00.000Z");
@@ -159,9 +170,9 @@ test("omits active records when enrichment fails but keeps completed records rea
   assert.deepEqual(items.map((item) => [item.id, item.status]), [["world-cup", "ended"]]);
 });
 
-test("collapses exact duplicate source records without hiding distinct schedules", async () => {
+test("collapses same-league aliases and keeps the most recent ended competition", async () => {
   const duplicate = { ...completedFootball, id: "world-cup-copy" };
-  const laterEdition = { ...completedFootball, id: "world-cup-later" };
+  const laterEdition = { ...completedFootball, id: "world-cup-later", name: "FIFA World Cup Tournament" };
 
   const items = await buildExplorerCatalog({
     tournaments: [completedFootball, duplicate, laterEdition],
@@ -178,5 +189,32 @@ test("collapses exact duplicate source records without hiding distinct schedules
     now: NOW,
   });
 
-  assert.deepEqual(items.map((item) => item.id), ["world-cup", "world-cup-later"]);
+  assert.deepEqual(items.map((item) => item.id), ["world-cup-later"]);
+});
+
+test("orders live competitions before upcoming and ended records", async () => {
+  const tournaments = [
+    { ...completedFootball, id: "ended", name: "Ended Cup", league: "Ended League" },
+    { ...completedFootball, id: "upcoming", name: "Future Cup", league: "Future League", status: "ACTIVE" },
+    { ...completedFootball, id: "live", name: "Live Cup", league: "Live League", status: "ACTIVE" },
+  ];
+
+  const items = await buildExplorerCatalog({
+    tournaments,
+    loadTournament: async (id) => ({
+      stages: [{
+        id: `stage-${id}`,
+        startTime: id === "upcoming" ? "2026-08-02T16:00:00.000Z" : "2026-07-26T16:00:00.000Z",
+        endTime: id === "live" ? "2026-07-28T18:00:00.000Z" : "2026-08-02T18:00:00.000Z",
+      }],
+    }),
+    loadF1Rounds: async () => ({ rounds: [] }),
+    now: NOW,
+  });
+
+  assert.deepEqual(items.map((item) => [item.id, item.status]), [
+    ["live", "live"],
+    ["upcoming", "upcoming"],
+    ["ended", "ended"],
+  ]);
 });

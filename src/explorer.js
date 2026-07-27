@@ -1,13 +1,56 @@
 const PRIORITY_SPORTS = ["Football", "Formula 1"];
 const TOKEN_DECIMALS = 18n;
+let explorerCache = null;
+let explorerRequest = null;
 
-export async function fetchExplorerItems() {
+export function fetchExplorerItems({ refresh = false } = {}) {
+  if (!refresh && explorerCache) return Promise.resolve(explorerCache);
+  if (!refresh && explorerRequest) return explorerRequest;
+
+  const request = requestExplorerItems().then((items) => {
+    explorerCache = items;
+    return items;
+  }).finally(() => {
+    if (explorerRequest === request) explorerRequest = null;
+  });
+
+  explorerRequest = request;
+  return request;
+}
+
+export function preloadExplorerItems() {
+  return fetchExplorerItems();
+}
+
+export function resetExplorerCache() {
+  explorerCache = null;
+  explorerRequest = null;
+}
+
+export function tournamentSlugFromPath(pathname = "") {
+  const match = String(pathname).match(/^\/tournaments\/([^/]+)\/?$/);
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return "";
+  }
+}
+
+export async function fetchTournamentDetail(slug) {
+  const response = await fetch(`/api/tournament?slug=${encodeURIComponent(slug)}`, {
+    headers: { Accept: "application/json" },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error?.message || `Tournament returned ${response.status}`);
+  return payload?.tournament || null;
+}
+
+async function requestExplorerItems() {
   const response = await fetch("/api/explorer", { headers: { Accept: "application/json" } });
   const payload = await response.json().catch(() => null);
 
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || `Explorer returned ${response.status}`);
-  }
+  if (!response.ok) throw new Error(payload?.error?.message || `Explorer returned ${response.status}`);
 
   return Array.isArray(payload?.items) ? payload.items : [];
 }
@@ -19,8 +62,7 @@ export function filterExplorerItems(items = [], { query = "", sport = "All", sta
     .filter((item) => sport === "All" || item.sport === sport)
     .filter((item) => status === "All" || item.status === status)
     .filter((item) => !needle || String(item.searchText || [item.name, item.sport, item.league].join(" ")).toLowerCase().includes(needle))
-    .sort((left, right) => dateValue(left.startTime) - dateValue(right.startTime)
-      || String(left.name).localeCompare(String(right.name)));
+    .sort(compareExplorerItems);
 }
 
 export function explorerSports(items = []) {
@@ -60,4 +102,18 @@ export function formatExplorerPrize(value, stakeAsset = "") {
 function dateValue(value) {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+function compareExplorerItems(left, right) {
+  const statusDifference = statusValue(left.status) - statusValue(right.status);
+  if (statusDifference) return statusDifference;
+
+  const dateDifference = left.status === "ended"
+    ? dateValue(right.endTime || right.startTime) - dateValue(left.endTime || left.startTime)
+    : dateValue(left.startTime) - dateValue(right.startTime);
+  return dateDifference || String(left.name).localeCompare(String(right.name));
+}
+
+function statusValue(status) {
+  return { live: 0, upcoming: 1, ended: 2 }[status] ?? 3;
 }

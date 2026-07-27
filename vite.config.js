@@ -9,6 +9,7 @@ import activationMessageHandler from "./server/txline-routes/activation-message.
 import bentoEstimateHandler from "./api/bento-estimate.js";
 import bentoExchangeHandler from "./api/bento-exchange.js";
 import explorerHandler from "./api/explorer.js";
+import tournamentHandler from "./api/tournament.js";
 import bentoLinkHandler from "./api/bento-link.js";
 import bentoLoginHandler from "./api/bento-login.js";
 import bentoMarketHandler from "./api/bento-market.js";
@@ -24,6 +25,7 @@ const apiHandlers = {
   "/api/bento-estimate": bentoEstimateHandler,
   "/api/bento-exchange": bentoExchangeHandler,
   "/api/explorer": explorerHandler,
+  "/api/tournament": tournamentHandler,
   "/api/bento-link": bentoLinkHandler,
   "/api/bento-login": bentoLoginHandler,
   "/api/bento-market": bentoMarketHandler,
