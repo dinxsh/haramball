@@ -2789,6 +2789,8 @@ button:disabled {
 .explorer-results {
   min-height: 220px;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 16px;
   padding: 8px 24px 28px;
   overflow: auto;
