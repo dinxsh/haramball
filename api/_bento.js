@@ -65,7 +65,11 @@ export async function fetchBentoExplorer({ now = Date.now() } = {}) {
   return { items };
 }
 
-export async function fetchBentoTournament(slug, { now = Date.now() } = {}) {
+export async function fetchBentoTournament(slug, {
+  now = Date.now(),
+  leaderboardPage = 1,
+  leaderboardPageSize = 10,
+} = {}) {
   const config = requireConfiguredBento();
   if (!config.tournamentsBaseUrl) {
     throw httpError(503, "Tournament details require the tournaments host", true);
@@ -82,6 +86,7 @@ export async function fetchBentoTournament(slug, { now = Date.now() } = {}) {
   let detail;
   let sourceDetail = source;
   let leaderboard = null;
+  let leaderboardIsPaged = false;
 
   if (isF1) {
     const [tournamentPayload, roundsPayload, leaderboardPayload] = await Promise.all([
@@ -93,10 +98,15 @@ export async function fetchBentoTournament(slug, { now = Date.now() } = {}) {
     detail = roundsPayload;
     leaderboard = leaderboardPayload;
   } else {
+    const offset = (leaderboardPage - 1) * leaderboardPageSize;
     [detail, leaderboard] = await Promise.all([
       sdk.tournaments.tournaments.getById(source.id),
-      sdk.tournaments.tournaments.getLeaderboard(source.id, { limit: 50 }).catch(() => null),
+      sdk.tournaments.tournaments.getLeaderboard(source.id, {
+        limit: leaderboardPageSize,
+        offset,
+      }).catch(() => null),
     ]);
+    leaderboardIsPaged = true;
     sourceDetail = { ...source, ...(detail?.tournament || {}) };
   }
 
@@ -104,7 +114,15 @@ export async function fetchBentoTournament(slug, { now = Date.now() } = {}) {
   if (!item) throw httpError(404, "Verified tournament is unavailable", true);
 
   return {
-    tournament: normalizeTournamentDetail({ item, source: sourceDetail, detail, leaderboard }),
+    tournament: normalizeTournamentDetail({
+      item,
+      source: sourceDetail,
+      detail,
+      leaderboard,
+      leaderboardPage,
+      leaderboardPageSize,
+      leaderboardIsPaged,
+    }),
   };
 }
 

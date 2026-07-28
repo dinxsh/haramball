@@ -22,6 +22,20 @@ test("tournament route returns normalized selected details", async () => {
   assert.deepEqual(JSON.parse(response.body), { tournament: { slug: "world-cup-c774b2e1" } });
 });
 
+test("tournament route forwards bounded leaderboard pagination", async () => {
+  const response = responseRecorder();
+  let receivedOptions;
+  const handler = createTournamentHandler(async (slug, options) => {
+    receivedOptions = options;
+    return { tournament: { slug } };
+  });
+
+  await handler({ url: "/api/tournament?slug=world-cup-c774b2e1&leaderboardPage=3&leaderboardPageSize=200" }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(receivedOptions, { leaderboardPage: 3, leaderboardPageSize: 50 });
+});
+
 function responseRecorder() {
   return {
     statusCode: 0,

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as bentoModule from "./bento.js";
 import { extractEstimate, humanToWei, isBentoMarketEnded, normalizeBentoLogin, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
@@ -78,4 +79,28 @@ test("treats a market past its API end time as ended", () => {
   assert.equal(isBentoMarketEnded({ status: "live", endTime: "2026-07-27T11:59:59.000Z" }, now), true);
   assert.equal(isBentoMarketEnded({ status: "live", endTime: "2026-07-27T12:00:01.000Z" }, now), false);
   assert.equal(isBentoMarketEnded({ status: "live", endTime: Math.floor((now - 1000) / 1000) }, now), true);
+});
+
+test("extracts a trailing parenthesized matchup for the hero", () => {
+  assert.equal(typeof bentoModule.fixtureFromMarket, "function");
+  assert.deepEqual(
+    bentoModule.fixtureFromMarket({
+      title: "Will a red card be shown in the next 5 minutes? (Portugal vs Spain)",
+      optionA: "Yes",
+      optionB: "No",
+    }),
+    {
+      home: "Portugal",
+      away: "Spain",
+      label: "Portugal vs Spain",
+    },
+  );
+});
+
+test("resolves a switched market by duel id and falls back safely", () => {
+  assert.equal(typeof bentoModule.marketIndexFromDuelId, "function");
+  const markets = [{ duelId: "first" }, { duelId: "second" }];
+
+  assert.equal(bentoModule.marketIndexFromDuelId(markets, "second"), 1);
+  assert.equal(bentoModule.marketIndexFromDuelId(markets, "missing"), 0);
 });

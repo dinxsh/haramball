@@ -156,3 +156,22 @@ test("fetches details for the selected tournament slug", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("fetches a selected leaderboard page without losing the tournament slug", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return { ok: true, json: async () => ({ tournament: { slug: "world-cup-c774b2e1" } }) };
+  };
+
+  try {
+    await explorerModule.fetchTournamentDetail("world-cup-c774b2e1", { leaderboardPage: 2, leaderboardPageSize: 10 });
+    assert.equal(
+      requestedUrl,
+      "/api/tournament?slug=world-cup-c774b2e1&leaderboardPage=2&leaderboardPageSize=10",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

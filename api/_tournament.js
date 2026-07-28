@@ -1,4 +1,15 @@
-export function normalizeTournamentDetail({ item = {}, source = {}, detail = {}, leaderboard } = {}) {
+export function normalizeTournamentDetail({
+  item = {},
+  source = {},
+  detail = {},
+  leaderboard,
+  leaderboardPage = 1,
+  leaderboardPageSize = 10,
+  leaderboardIsPaged = false,
+} = {}) {
+  const normalizedLeaderboard = normalizeLeaderboard(leaderboard);
+  const total = numberOrNull(leaderboard?.total ?? leaderboard?.stats?.totalEntries) ?? normalizedLeaderboard.length;
+  const firstRow = (leaderboardPage - 1) * leaderboardPageSize;
   const normalized = {
     ...item,
     description: text(source.description || detail.tournament?.description || detail.description),
@@ -6,7 +17,15 @@ export function normalizeTournamentDetail({ item = {}, source = {}, detail = {},
     entryCount: finiteNumber(item.entryCount ?? source.entryCount ?? detail.tournament?.entryCount),
     prizePool: valueOrNull(item.prizePool ?? source.prizePool ?? detail.tournament?.prizePool),
     stakeAsset: text(item.stakeAsset || source.stakeAsset || source.config?.stakeAsset),
-    leaderboard: normalizeLeaderboard(leaderboard),
+    leaderboard: leaderboardIsPaged
+      ? normalizedLeaderboard
+      : normalizedLeaderboard.slice(firstRow, firstRow + leaderboardPageSize),
+    leaderboardPagination: {
+      page: leaderboardPage,
+      pageSize: leaderboardPageSize,
+      total,
+      totalPages: Math.ceil(total / leaderboardPageSize),
+    },
   };
 
   if (item.kind === "f1") {
@@ -76,7 +95,13 @@ function normalizeLeaderboard(payload) {
   return rows.map((row) => ({
     rank: numberOrNull(row.rank),
     name: text(row.username || row.name || row.displayName || row.wallet || row.address),
-    score: numberOrNull(row.points ?? row.score ?? row.totalPoints ?? row.wins),
+    wallet: text(row.wallet || row.address),
+    avatarUrl: text(row.avatarUrl || row.avatar),
+    score: numberOrNull(row.points ?? row.score ?? row.totalPoints ?? row.seasonPoints ?? row.wins),
+    eloRating: numberOrNull(row.eloRating),
+    racesParticipated: numberOrNull(row.racesParticipated),
+    stagesPlayed: numberOrNull(row.stagesPlayed),
+    status: text(row.status),
   })).filter((row) => row.name);
 }
 

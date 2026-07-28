@@ -26,6 +26,39 @@ export async function fetchBentoMarket(duelId) {
   return payload.market;
 }
 
+export function marketIndexFromDuelId(markets = [], duelId = "") {
+  const index = markets.findIndex((market) => String(market?.duelId) === String(duelId));
+  return index >= 0 ? index : 0;
+}
+
+export function fixtureFromMarket(market) {
+  if (market?.raw?.home || market?.raw?.away) {
+    const home = market.raw.home || "Live";
+    const away = market.raw.away || "Market";
+    return { home, away, label: `${home} vs ${away}` };
+  }
+
+  const title = String(market?.title || "");
+  const versus = title.match(/\(([^()]+?)\s+(?:vs\.?|v\.?)\s+([^()]+?)\)\s*$/i)
+    || title.match(/^(.+?)\s+(?:vs\.?|v\.?|beat|defeat)\s+(.+?)(?:\s+in\s+|\?|$)/i);
+  if (versus) {
+    const home = cleanTeamName(versus[1]);
+    const away = cleanTeamName(versus[2]);
+    return { home, away, label: `${home} vs ${away}` };
+  }
+
+  const home = market ? market.optionA || "Home" : "Team X";
+  const away = market ? market.optionB || "Away" : "Team Y";
+  return { home, away, label: `${home} vs ${away}` };
+}
+
+function cleanTeamName(value) {
+  return String(value || "")
+    .replace(/^will\s+/i, "")
+    .replace(/\s+their\s+next.*$/i, "")
+    .trim();
+}
+
 export async function loginBentoWallet({ address, signature, timestamp, username }) {
   return postJson("/api/bento-login", { address, signature, timestamp, username });
 }

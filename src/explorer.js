@@ -37,8 +37,13 @@ export function tournamentSlugFromPath(pathname = "") {
   }
 }
 
-export async function fetchTournamentDetail(slug) {
-  const response = await fetch(`/api/tournament?slug=${encodeURIComponent(slug)}`, {
+export async function fetchTournamentDetail(slug, pagination) {
+  const params = new URLSearchParams({ slug });
+  if (pagination) {
+    params.set("leaderboardPage", String(pagination.leaderboardPage));
+    params.set("leaderboardPageSize", String(pagination.leaderboardPageSize));
+  }
+  const response = await fetch(`/api/tournament?${params}`, {
     headers: { Accept: "application/json" },
   });
   const payload = await response.json().catch(() => null);

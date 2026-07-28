@@ -32,10 +32,12 @@ import {
   fetchBentoPortfolio,
   fetchBentoReadiness,
   fetchLeaderboardUsers,
+  fixtureFromMarket,
   humanToWei,
   initialBentoReadiness,
   isBentoMarketEnded,
   loginBentoWallet,
+  marketIndexFromDuelId,
   normalizeExternalLogin,
   normalizeBentoLogin,
   placeBentoBet,
@@ -713,8 +715,23 @@ function MarketApp() {
                 <div className="hero-empty-state">No live market data</div>
               )}
             </div>
-            {market && (leagueName || marketEnded) ? (
+            {market ? (
               <div className="market-context" aria-label="Market context">
+                <label className="fixture-picker">
+                  <span>Switch tournament</span>
+                  <select
+                    aria-label="Switch tournament"
+                    disabled={markets.length < 2}
+                    onChange={(event) => setMarketIndex(marketIndexFromDuelId(markets, event.target.value))}
+                    value={market.duelId}
+                  >
+                    {markets.map((item) => (
+                      <option key={item.duelId} value={item.duelId}>
+                        {item.title || item.duelId}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <b>{[leagueName, marketEnded ? "Ended" : "Live"].filter(Boolean).join(" - ")}</b>
               </div>
             ) : null}
@@ -1628,39 +1645,6 @@ function buildActivityCells(feed) {
     cells[cellIndex] = Math.min(4, cells[cellIndex] + 1);
   }
   return cells;
-}
-
-function fixtureFromMarket(market) {
-  if (market?.raw?.home || market?.raw?.away) {
-    return {
-      home: market.raw.home || "Live",
-      away: market.raw.away || "Market",
-      label: `${market.raw.home || "Live"} vs ${market.raw.away || "Market"}`,
-    };
-  }
-
-  const title = String(market?.title || "");
-  const versus = title.match(/^(.+?)\s+(?:vs\.?|v\.?|beat|defeat)\s+(.+?)(?:\s+in\s+|\?|$)/i);
-  if (versus) {
-    return {
-      home: cleanTeamName(versus[1]),
-      away: cleanTeamName(versus[2]),
-      label: `${cleanTeamName(versus[1])} vs ${cleanTeamName(versus[2])}`,
-    };
-  }
-
-  return {
-    home: market ? market.optionA || "Home" : "Team X",
-    away: market ? market.optionB || "Away" : "Team Y",
-    label: market ? `${market.optionA || "Team X"} vs ${market.optionB || "Team Y"}` : "Team X vs Team Y",
-  };
-}
-
-function cleanTeamName(value) {
-  return String(value || "")
-    .replace(/^will\s+/i, "")
-    .replace(/\s+their\s+next.*$/i, "")
-    .trim();
 }
 
 function leagueFromMarket(market) {

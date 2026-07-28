@@ -74,6 +74,54 @@ test("normalizes F1 rounds without inventing missing leaderboard data", () => {
   assert.equal("stages" in result, false);
 });
 
+test("normalizes and paginates the fields Bento publishes for F1 leaderboard entries", () => {
+  const result = normalizeTournamentDetail({
+    item: { id: "f1", slug: "f1-12345678", kind: "f1", name: "F1" },
+    detail: { rounds: [] },
+    leaderboard: {
+      total: 3,
+      entries: [
+        { rank: 1, wallet: "0xone", seasonPoints: 0, eloRating: 1000, racesParticipated: 0 },
+        { rank: 1, wallet: "0xtwo", seasonPoints: 12, eloRating: 1012, racesParticipated: 1 },
+        { rank: 3, wallet: "0xthree", seasonPoints: 8, eloRating: 1008, racesParticipated: 1 },
+      ],
+    },
+    leaderboardPage: 2,
+    leaderboardPageSize: 2,
+  });
+
+  assert.deepEqual(result.leaderboard, [{
+    rank: 3,
+    name: "0xthree",
+    wallet: "0xthree",
+    avatarUrl: "",
+    score: 8,
+    eloRating: 1008,
+    racesParticipated: 1,
+    stagesPlayed: null,
+    status: "",
+  }]);
+  assert.deepEqual(result.leaderboardPagination, { page: 2, pageSize: 2, total: 3, totalPages: 2 });
+});
+
+test("preserves a server-paged football leaderboard and its total entry count", () => {
+  const result = normalizeTournamentDetail({
+    item: { id: "cup", slug: "cup-12345678", kind: "tournament", name: "Cup" },
+    detail: { stages: [] },
+    leaderboard: {
+      leaderboard: [{ rank: 3, wallet: "0xthree", totalPoints: "900", stagesPlayed: 2 }],
+      stats: { totalEntries: 3 },
+    },
+    leaderboardPage: 2,
+    leaderboardPageSize: 2,
+    leaderboardIsPaged: true,
+  });
+
+  assert.equal(result.leaderboard.length, 1);
+  assert.equal(result.leaderboard[0].score, 900);
+  assert.deepEqual(result.leaderboardPagination, { page: 2, pageSize: 2, total: 3, totalPages: 2 });
+});
+
 test("does not invent leaderboard rank or score when Bento omits them", () => {
   const result = normalizeTournamentDetail({
     item: { id: "cup", slug: "cup-12345678", kind: "tournament", name: "Cup" },
@@ -81,5 +129,15 @@ test("does not invent leaderboard rank or score when Bento omits them", () => {
     leaderboard: { entries: [{ username: "verified-player" }] },
   });
 
-  assert.deepEqual(result.leaderboard, [{ rank: null, name: "verified-player", score: null }]);
+  assert.deepEqual(result.leaderboard, [{
+    rank: null,
+    name: "verified-player",
+    wallet: "",
+    avatarUrl: "",
+    score: null,
+    eloRating: null,
+    racesParticipated: null,
+    stagesPlayed: null,
+    status: "",
+  }]);
 });
