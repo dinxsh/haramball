@@ -963,6 +963,12 @@ function MarketApp() {
                   <div>
                     <small>{finalResult.eyebrow}</small>
                     <strong>{finalResult.title}</strong>
+                    {finalResult.match || finalResult.score ? (
+                      <span className="ended-result-meta">
+                        {finalResult.match ? <b>{finalResult.match}</b> : null}
+                        {finalResult.score ? <b>{finalResult.score}</b> : null}
+                      </span>
+                    ) : null}
                     <span>{finalResult.detail}</span>
                   </div>
                 </div>

@@ -142,21 +142,34 @@ export function isBentoMarketEnded(market, now = Date.now()) {
 }
 
 export function marketResultSummary(market = {}) {
-  const winner = displayOutcome(market?.winner);
+  const rawWinner = displayOutcome(market?.winner);
+  const fixture = fixtureFromMarket(market);
+  const scoreWinner = displayScoreWinnerLabel(market, fixture);
+  const winner = scoreWinner || displayWinnerLabel(market, rawWinner);
+  const hasSpecificWinner = winner && !/^(yes|no)$/i.test(winner);
   if (!winner) {
     return {
       eyebrow: "Bento final result",
       title: "Final result pending",
       detail: "Bento has marked this market final, but no resolved winner was published.",
+      winner: "",
     };
   }
 
-  const isBinaryOutcome = /^(yes|no)$/i.test(winner);
-  return {
+  const match = hasSpecificFixture(fixture, market) ? fixture.label : "";
+  const score = scoreLabel(market);
+  const question = cleanMarketQuestion(market?.title, match);
+  const scoreDetail = scoreWinner && score ? `${winner} won ${score}` : "";
+  const isBinaryOutcome = /^(yes|no)$/i.test(rawWinner);
+  const summary = {
     eyebrow: "Bento final result",
-    title: isBinaryOutcome ? `Resolved outcome: ${winner}` : `Winner: ${winner}`,
-    detail: "Finalized from Bento result data.",
+    title: isBinaryOutcome && !hasSpecificWinner ? `Resolved outcome: ${winner}` : `Winner: ${winner}`,
+    detail: [match, scoreDetail, question].filter(Boolean).join(" - ") || "Finalized from Bento result data.",
+    winner,
   };
+  if (match) summary.match = match;
+  if (score) summary.score = score;
+  return summary;
 }
 
 function displayOutcome(value) {
@@ -165,6 +178,54 @@ function displayOutcome(value) {
   if (/^yes$/i.test(normalized)) return "Yes";
   if (/^no$/i.test(normalized)) return "No";
   return normalized;
+}
+
+function displayWinnerLabel(market = {}, winner = "") {
+  if (!winner) return "";
+  if (/^yes$/i.test(winner)) {
+    const option = displayOutcome(market.optionA);
+    return isSpecificOutcomeLabel(option) ? option : winner;
+  }
+  if (/^no$/i.test(winner)) {
+    const option = displayOutcome(market.optionB);
+    return isSpecificOutcomeLabel(option) ? option : winner;
+  }
+  return winner;
+}
+
+function isSpecificOutcomeLabel(value) {
+  return Boolean(value && !/^(yes|no)$/i.test(value));
+}
+
+function displayScoreWinnerLabel(market = {}, fixture = {}) {
+  if (!hasReliableHomeAwayScore(market) || !hasSpecificFixture(fixture, market)) return "";
+  if (market.homeScore === market.awayScore) return "";
+  return market.homeScore > market.awayScore ? fixture.home : fixture.away;
+}
+
+function hasReliableHomeAwayScore(market = {}) {
+  return /^(.+\.)?score\.home-away$|^home-away-fields$/i.test(String(market.resultSource || ""))
+    && Number.isFinite(market.homeScore)
+    && Number.isFinite(market.awayScore);
+}
+
+function scoreLabel(market = {}) {
+  return Number.isFinite(market.homeScore) && Number.isFinite(market.awayScore)
+    ? `${market.homeScore}-${market.awayScore}`
+    : "";
+}
+
+function hasSpecificFixture(fixture, market = {}) {
+  if (!fixture?.label) return false;
+  if (fixture.source !== "option-fallback") return true;
+  return isSpecificOutcomeLabel(market.optionA) && isSpecificOutcomeLabel(market.optionB);
+}
+
+function cleanMarketQuestion(title = "", match = "") {
+  const question = String(title || "")
+    .replace(/\s*\([^()]+?\s+(?:vs\.?|v\.?)\s+[^()]+?\)\s*$/i, "")
+    .trim();
+  return question && question !== match ? question : "";
 }
 
 export async function saveLeaderboardUser(user) {

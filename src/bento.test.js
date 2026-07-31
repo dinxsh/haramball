@@ -97,6 +97,7 @@ test("formats ended market result copy without raw all-caps noise", () => {
       eyebrow: "Bento final result",
       title: "Resolved outcome: No",
       detail: "Finalized from Bento result data.",
+      winner: "No",
     },
   );
   assert.deepEqual(
@@ -104,10 +105,49 @@ test("formats ended market result copy without raw all-caps noise", () => {
     {
       eyebrow: "Bento final result",
       title: "Winner: Argentina",
-      detail: "Finalized from Bento result data.",
+      detail: "Spain vs Argentina",
+      winner: "Argentina",
+      match: "Spain vs Argentina",
     },
   );
   assert.equal(marketResultSummary({}).title, "Final result pending");
+});
+
+test("maps binary Bento winners back to team option labels with match context", () => {
+  assert.deepEqual(
+    marketResultSummary({
+      title: "Will Portugal win the match? (Portugal vs Spain)",
+      optionA: "Portugal",
+      optionB: "Spain",
+      winner: "NO",
+    }),
+    {
+      eyebrow: "Bento final result",
+      title: "Winner: Spain",
+      detail: "Portugal vs Spain - Will Portugal win the match?",
+      winner: "Spain",
+      match: "Portugal vs Spain",
+    },
+  );
+  assert.deepEqual(
+    marketResultSummary({
+      title: "Will a red card be shown in the next 5 minutes? (Portugal vs Spain)",
+      optionA: "Yes",
+      optionB: "No",
+      winner: "NO",
+      homeScore: 0,
+      awayScore: 1,
+      resultSource: "result.score.home-away",
+    }),
+    {
+      eyebrow: "Bento final result",
+      title: "Winner: Spain",
+      detail: "Portugal vs Spain - Spain won 0-1 - Will a red card be shown in the next 5 minutes?",
+      winner: "Spain",
+      match: "Portugal vs Spain",
+      score: "0-1",
+    },
+  );
 });
 
 test("extracts a trailing parenthesized matchup for the hero", () => {

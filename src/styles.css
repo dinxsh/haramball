@@ -1119,6 +1119,26 @@ button:disabled {
   line-height: 1.35;
 }
 
+.ended-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.ended-result-meta b {
+  width: fit-content;
+  padding: 4px 7px;
+  color: #050507;
+  background: #fffdf2;
+  border: 2px solid #050507;
+  border-radius: 999px;
+  box-shadow: 1px 1px 0 #050507;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .cycle-card.is-sweat .progress-track span {
   background: repeating-linear-gradient(45deg, var(--orange) 0 8px, var(--yellow) 8px 16px);
 }
