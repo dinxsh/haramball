@@ -25,13 +25,13 @@ The backend also accepts the hackathon shorthand:
 BUILDER_API_KEY=bnt_...
 ```
 
-Optional:
+Optional override:
 
 ```env
 PARLAY_TOURNMENT_URL=https://bento-fun-tournaments-backend-3nku.onrender.com
 ```
 
-The `PARLAY_TOURNMENT_URL` spelling matches the hackathon reference repo. The backend also accepts `PARLAY_TOURNAMENT_URL`.
+The backend defaults to the Bento hackathon tournaments host shown above. Set `PARLAY_TOURNMENT_URL` only when Bento provides a different host. The `PARLAY_TOURNMENT_URL` spelling matches the hackathon reference repo; the backend also accepts `PARLAY_TOURNAMENT_URL`.
 
 ## Bento Flow
 

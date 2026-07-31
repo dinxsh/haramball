@@ -121,15 +121,29 @@ test("marks confidently sourced score results separately from ambiguous aliases"
   );
 });
 
-test("Explorer requires a configured tournaments host without returning fallback data", async () => {
+test("server config uses documented tournaments host by default", () => {
+  const previousTournaments = process.env.PARLAY_TOURNMENT_URL;
+  const previousTournamentAlias = process.env.PARLAY_TOURNAMENT_URL;
+  delete process.env.PARLAY_TOURNMENT_URL;
+  delete process.env.PARLAY_TOURNAMENT_URL;
+
+  const config = getBentoServerConfig();
+
+  assert.equal(config.tournamentsBaseUrl, "https://bento-fun-tournaments-backend-3nku.onrender.com");
+
+  restoreEnv("PARLAY_TOURNMENT_URL", previousTournaments);
+  restoreEnv("PARLAY_TOURNAMENT_URL", previousTournamentAlias);
+});
+
+test("Explorer still requires Bento credentials without returning fallback data", async () => {
   const previousKey = process.env.BENTO_BUILDER_API_KEY;
   const previousTournaments = process.env.PARLAY_TOURNMENT_URL;
-  process.env.BENTO_BUILDER_API_KEY = "bnt_test";
-  delete process.env.PARLAY_TOURNMENT_URL;
+  delete process.env.BENTO_BUILDER_API_KEY;
+  process.env.PARLAY_TOURNMENT_URL = "https://bento-fun-tournaments-backend-3nku.onrender.com";
 
   await assert.rejects(
     fetchBentoExplorer(),
-    (error) => error.statusCode === 503 && /tournaments host/i.test(error.message),
+    (error) => error.statusCode === 503 && /BENTO_BUILDER_API_KEY|BUILDER_API_KEY/i.test(error.message),
   );
 
   restoreEnv("BENTO_BUILDER_API_KEY", previousKey);

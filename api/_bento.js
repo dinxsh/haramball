@@ -3,11 +3,12 @@ import { buildExplorerCatalog, normalizeExplorerTournament, resolveTournamentSlu
 import { normalizeTournamentDetail } from "./_tournament.js";
 
 const DEFAULT_BENTO_URL = "https://internal-server.bento.fun";
+const DEFAULT_TOURNAMENTS_URL = "https://bento-fun-tournaments-backend-3nku.onrender.com";
 
 export function getBentoServerConfig() {
   const baseUrl = stripTrailingSlash(process.env.BENTO_URL || DEFAULT_BENTO_URL);
   const tournamentsBaseUrl = stripTrailingSlash(
-    process.env.PARLAY_TOURNMENT_URL || process.env.PARLAY_TOURNAMENT_URL || "",
+    process.env.PARLAY_TOURNMENT_URL || process.env.PARLAY_TOURNAMENT_URL || DEFAULT_TOURNAMENTS_URL,
   );
   const apiKey = process.env.BENTO_BUILDER_API_KEY || process.env.BUILDER_API_KEY;
 

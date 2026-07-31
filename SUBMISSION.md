@@ -40,7 +40,7 @@ BUILDER_API_KEY=...
 PARLAY_TOURNMENT_URL=https://bento-fun-tournaments-backend-3nku.onrender.com
 ```
 
-`BENTO_BUILDER_API_KEY` is the official SDK env name. `BUILDER_API_KEY` is accepted as a hackathon-note alias. `PARLAY_TOURNMENT_URL` intentionally uses the spelling from the Bento hackathon repo.
+`BENTO_BUILDER_API_KEY` is the official SDK env name. `BUILDER_API_KEY` is accepted as a hackathon-note alias. `PARLAY_TOURNMENT_URL` intentionally uses the spelling from the Bento hackathon repo and is an override for the built-in default host.
 
 ## Submission Reference
 
