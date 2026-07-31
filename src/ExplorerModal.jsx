@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  defaultExplorerStatus,
   explorerSports,
   fetchExplorerItems,
   fetchTournamentDetail,
@@ -32,7 +33,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sport, setSport] = useState("All");
-  const [status, setStatus] = useState(initialStatus);
+  const [status, setStatus] = useState(() => defaultExplorerStatus(initialStatus));
   const [expandedId, setExpandedId] = useState("");
   const [expandedTournament, setExpandedTournament] = useState(null);
   const [expandedTournamentLoading, setExpandedTournamentLoading] = useState(false);
@@ -92,7 +93,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
   }, [open, loaded, loading, error]);
 
   useEffect(() => {
-    if (open) setStatus(initialStatus);
+    if (open) setStatus(defaultExplorerStatus(initialStatus));
   }, [initialStatus, open]);
 
   useEffect(() => {

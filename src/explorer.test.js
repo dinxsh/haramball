@@ -72,6 +72,11 @@ test("filters lifecycle and orders nearest dates first", () => {
   );
 });
 
+test("defaults explorer status to the whole catalog", () => {
+  assert.equal(explorerModule.defaultExplorerStatus(), "All");
+  assert.equal(explorerModule.defaultExplorerStatus("live"), "live");
+});
+
 test("keeps explorer schedule expansion separate from selected competition entry", () => {
   assert.deepEqual(
     explorerModule.nextExplorerModalState(

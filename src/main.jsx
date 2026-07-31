@@ -1071,7 +1071,7 @@ function MarketApp() {
         />
       ) : null}
 
-      <ExplorerModal initialStatus="live" onClose={closeExplorer} onSelectTournament={() => {}} open={explorerOpen} />
+      <ExplorerModal onClose={closeExplorer} onSelectTournament={() => {}} open={explorerOpen} />
 
       <div className={toast ? "toast show" : "toast"}>{toast}</div>
     </main>

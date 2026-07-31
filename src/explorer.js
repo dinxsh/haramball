@@ -3,6 +3,10 @@ const TOKEN_DECIMALS = 18n;
 let explorerCache = null;
 let explorerRequest = null;
 
+export function defaultExplorerStatus(status) {
+  return status || "All";
+}
+
 export function fetchExplorerItems({ refresh = false } = {}) {
   if (!refresh && explorerCache) return Promise.resolve(explorerCache);
   if (!refresh && explorerRequest) return explorerRequest;
