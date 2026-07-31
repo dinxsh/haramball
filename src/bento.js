@@ -142,6 +142,7 @@ export function isBentoMarketEnded(market, now = Date.now()) {
 }
 
 export function marketResultSummary(market = {}) {
+  market ||= {};
   const rawWinner = displayOutcome(market?.winner);
   const fixture = fixtureFromMarket(market);
   const scoreWinner = displayScoreWinnerLabel(market, fixture);

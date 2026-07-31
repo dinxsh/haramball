@@ -91,6 +91,7 @@ test("treats a market past its API end time as ended", () => {
 });
 
 test("formats ended market result copy without raw all-caps noise", () => {
+  assert.equal(marketResultSummary(null).title, "Final result pending");
   assert.deepEqual(
     marketResultSummary({ winner: "NO", resultSource: "result.score.home-away" }),
     {
