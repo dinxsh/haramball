@@ -41,9 +41,10 @@ export function marketIndexFromDuelId(markets = [], duelId = "") {
 }
 
 export function fixtureFromMarket(market) {
-  if (market?.raw?.home || market?.raw?.away) {
-    const home = market.raw.home || "Live";
-    const away = market.raw.away || "Market";
+  const apiFixture = fixtureFromApiMarket(market);
+  if (apiFixture) {
+    const home = apiFixture.home || "Live";
+    const away = apiFixture.away || "Market";
     return { home, away, label: `${home} vs ${away}`, source: "bento", inferred: false };
   }
 
@@ -59,6 +60,41 @@ export function fixtureFromMarket(market) {
   const home = market ? market.optionA || "Home" : "Team X";
   const away = market ? market.optionB || "Away" : "Team Y";
   return { home, away, label: `${home} vs ${away}`, source: "option-fallback", inferred: true };
+}
+
+function fixtureFromApiMarket(market = {}) {
+  const raw = market.raw || {};
+  const teams = raw.teams || raw.match?.teams || raw.fixture?.teams || raw.game?.teams;
+  const home = labelFromFixtureValue(
+    raw.home ||
+    raw.homeTeam ||
+    raw.home_team ||
+    raw.teamA ||
+    raw.team_a ||
+    raw.match?.home ||
+    raw.match?.homeTeam ||
+    raw.fixture?.home ||
+    raw.fixture?.homeTeam ||
+    (Array.isArray(teams) ? teams[0] : teams?.home),
+  );
+  const away = labelFromFixtureValue(
+    raw.away ||
+    raw.awayTeam ||
+    raw.away_team ||
+    raw.teamB ||
+    raw.team_b ||
+    raw.match?.away ||
+    raw.match?.awayTeam ||
+    raw.fixture?.away ||
+    raw.fixture?.awayTeam ||
+    (Array.isArray(teams) ? teams[1] : teams?.away),
+  );
+  return home || away ? { home, away } : null;
+}
+
+function labelFromFixtureValue(value) {
+  if (typeof value === "string") return value.trim();
+  return String(value?.name || value?.label || value?.title || value?.country || "").trim();
 }
 
 function cleanTeamName(value) {
@@ -148,24 +184,28 @@ export function marketResultSummary(market = {}) {
   const scoreWinner = displayScoreWinnerLabel(market, fixture);
   const winner = scoreWinner || displayWinnerLabel(market, rawWinner);
   const hasSpecificWinner = winner && !/^(yes|no)$/i.test(winner);
-  if (!winner) {
-    return {
+  const match = hasSpecificFixture(fixture, market) ? fixture.label : "";
+  const score = scoreLabel(market);
+  if (!winner || !hasSpecificWinner) {
+    const summary = {
       eyebrow: "Bento final result",
-      title: "Final result pending",
-      detail: "Bento has marked this market final, but no resolved winner was published.",
+      title: "Match final",
+      detail: [match, score ? `Final score ${score}` : ""].filter(Boolean).join(" - ") || "Bento has marked this market final.",
       winner: "",
+    };
+    if (match) summary.match = match;
+    if (score) summary.score = score;
+    return {
+      ...summary,
+      ...(match || score ? {} : { title: "Final result pending" }),
     };
   }
 
-  const match = hasSpecificFixture(fixture, market) ? fixture.label : "";
-  const score = scoreLabel(market);
-  const question = cleanMarketQuestion(market?.title, match);
   const scoreDetail = scoreWinner && score ? `${winner} won ${score}` : "";
-  const isBinaryOutcome = /^(yes|no)$/i.test(rawWinner);
   const summary = {
     eyebrow: "Bento final result",
-    title: isBinaryOutcome && !hasSpecificWinner ? `Resolved outcome: ${winner}` : `Winner: ${winner}`,
-    detail: [match, scoreDetail, question].filter(Boolean).join(" - ") || "Finalized from Bento result data.",
+    title: `Winner: ${winner}`,
+    detail: [match, scoreDetail].filter(Boolean).join(" - ") || "Finalized from Bento result data.",
     winner,
   };
   if (match) summary.match = match;
@@ -220,13 +260,6 @@ function hasSpecificFixture(fixture, market = {}) {
   if (!fixture?.label) return false;
   if (fixture.source !== "option-fallback") return true;
   return isSpecificOutcomeLabel(market.optionA) && isSpecificOutcomeLabel(market.optionB);
-}
-
-function cleanMarketQuestion(title = "", match = "") {
-  const question = String(title || "")
-    .replace(/\s*\([^()]+?\s+(?:vs\.?|v\.?)\s+[^()]+?\)\s*$/i, "")
-    .trim();
-  return question && question !== match ? question : "";
 }
 
 export async function saveLeaderboardUser(user) {

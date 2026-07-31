@@ -144,6 +144,7 @@ function MarketApp() {
   const lockoutActive = secondsRemaining <= LOCKOUT_SECONDS;
   const progressPercent = Math.min(100, Math.max(0, (elapsedSeconds / ROUND_SECONDS) * 100));
   const marketTitle = market?.title || (readiness.configured ? "No match markets returned" : "Market board needs setup");
+  const endedMarketTitle = marketEnded ? finalResult.title : marketTitle;
   const marketBody = market
     ? "Preview your ticket, then lock it in."
     : readiness.configured
@@ -419,11 +420,11 @@ function MarketApp() {
     setPick(null);
     setEstimate(null);
     setSettlement(marketEnded
-      ? {
+        ? {
           tone: "idle",
           icon: <Lock size={18} />,
-          title: "Tournament ended",
-          body: "This market is final and read-only.",
+          title: "Match final",
+          body: finalResult.detail,
           payout: "Final",
           receipt: null,
         }
@@ -874,8 +875,10 @@ function MarketApp() {
             {market ? (
               <div className="market-context" aria-label="Market context">
                 <div className="fixture-picker">
-                  <span>Random bet</span>
-                  <b title={market.title || market.duelId}>{market.title && market.title !== fixture.label ? market.title : fixture.label}</b>
+                  <span>{marketEnded ? "Final match" : "Random bet"}</span>
+                  <b title={market.title || market.duelId}>
+                    {marketEnded ? finalResult.match || fixture.label : market.title && market.title !== fixture.label ? market.title : fixture.label}
+                  </b>
                 </div>
                 <b>{[leagueName, marketEnded ? "Ended" : "15s round"].filter(Boolean).join(" - ")}</b>
               </div>
@@ -889,7 +892,7 @@ function MarketApp() {
             <article className={`cycle-card ${marketEnded ? "is-ended" : "is-action"}`}>
               <div className="timer-block">
                 <div className="timer-label">
-                  <span>{marketEnded ? "Tournament ended" : lockoutActive ? "Market locked" : "Lock closes in"}</span>
+                  <span>{marketEnded ? "Match final" : lockoutActive ? "Market locked" : "Lock closes in"}</span>
                   <b>{marketEnded ? "Final" : `${secondsRemaining}s`}</b>
                 </div>
                 <div className="progress-track">
@@ -899,7 +902,7 @@ function MarketApp() {
 
               {marketsLoading ? <MarketQuestionSkeleton /> : (
                 <div className="question-block">
-                  <h1>{marketTitle}</h1>
+                  <h1>{endedMarketTitle}</h1>
                   <p>{marketEnded ? finalResult.detail : "One random side is chosen for a strict 15-second window."}</p>
                 </div>
               )}
@@ -969,7 +972,7 @@ function MarketApp() {
                         {finalResult.score ? <b>{finalResult.score}</b> : null}
                       </span>
                     ) : null}
-                    <span>{finalResult.detail}</span>
+                    {finalResult.match || finalResult.score ? null : <span>{finalResult.detail}</span>}
                   </div>
                 </div>
               )}
@@ -1001,7 +1004,7 @@ function MarketApp() {
           <section className="intro-panel ended-desktop-panel">
             <div className="eyebrow"><Lock size={16} /> Final</div>
             <h2>{finalResult.title}</h2>
-            <p>{finalResult.detail} This page is read-only now; ticket preview and placement are disabled.</p>
+            <p>{finalResult.detail}</p>
           </section>
         ) : (
           <>
