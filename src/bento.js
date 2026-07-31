@@ -186,6 +186,7 @@ export function weiToHuman(value) {
 }
 
 export function tokenDecimalsFromMarket(market = {}) {
+  market ||= {};
   const explicit = Number(market.tokenDecimals ?? market.raw?.tokenDecimals ?? market.raw?.token_decimals);
   if (Number.isInteger(explicit) && explicit >= 0 && explicit <= 30) return explicit;
   const collateral = String(market.collateralMode ?? market.raw?.collateralMode ?? market.raw?.collateral_mode ?? "").toLowerCase();

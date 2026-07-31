@@ -18,6 +18,7 @@ test("keeps partial or invalid stake input from crashing render", () => {
 test("converts human amounts using Bento collateral decimals", () => {
   assert.equal(humanToBaseUnits("1.23", 6), "1230000");
   assert.equal(humanToBaseUnits("1.23", 18), "1230000000000000000");
+  assert.equal(tokenDecimalsFromMarket(null), 18);
   assert.equal(tokenDecimalsFromMarket({ tokenDecimals: 6 }), 6);
   assert.equal(tokenDecimalsFromMarket({ raw: { collateralMode: "credits" } }), 18);
   assert.equal(tokenDecimalsFromMarket({ raw: { collateralMode: "usdc", chain: "base" } }), 6);
