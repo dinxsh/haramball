@@ -43,6 +43,10 @@ export function nextExplorerModalState(state = {}, action = {}) {
   };
 }
 
+export function shouldShowExplorerSkeleton({ open = false, loaded = false, error = "", loading = false } = {}) {
+  return Boolean(open && !loaded && !error && (loading || !loaded));
+}
+
 export function tournamentSlugFromPath(pathname = "") {
   const match = String(pathname).match(/^\/tournaments\/([^/]+)\/?$/);
   if (!match) return "";

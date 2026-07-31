@@ -20,6 +20,7 @@ import {
   formatExplorerPrize,
   nextExplorerModalState,
   preloadExplorerItems,
+  shouldShowExplorerSkeleton,
 } from "./explorer.js";
 
 const STATUS_FILTERS = ["All", "live", "upcoming", "ended"];
@@ -49,6 +50,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
     () => filterExplorerItems(items, { query, sport, status }),
     [items, query, sport, status],
   );
+  const showInitialSkeleton = shouldShowExplorerSkeleton({ open, loaded, error, loading });
 
   const load = async ({ refresh = false } = {}) => {
     if (loading || (loaded && !refresh)) return;
@@ -269,15 +271,15 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
             </div>
           </div>
           <div className="explorer-filter-summary">
-            <b>{loading && !loaded ? "Checking catalog" : `${visibleItems.length} ${visibleItems.length === 1 ? "competition" : "competitions"}`}</b>
+            <b>{showInitialSkeleton ? "Checking catalog" : `${visibleItems.length} ${visibleItems.length === 1 ? "competition" : "competitions"}`}</b>
             {query || sport !== "All" || status !== "All" ? (
               <button onClick={() => { setQuery(""); setSport("All"); setStatus("All"); }} type="button">Clear filters</button>
             ) : null}
           </div>
         </div>
 
-        <div className="explorer-results" aria-busy={loading} aria-live="polite">
-          {loading && !loaded ? <ExplorerLoading /> : null}
+        <div className="explorer-results" aria-busy={showInitialSkeleton || loading} aria-live="polite">
+          {showInitialSkeleton ? <ExplorerLoading /> : null}
           {error ? (
             <div className="explorer-state error" role="alert">
               <strong>Explorer could not load</strong>

@@ -89,6 +89,21 @@ test("keeps explorer schedule expansion separate from selected competition entry
   );
 });
 
+test("shows explorer skeleton immediately while an opened modal has not loaded", () => {
+  assert.equal(
+    explorerModule.shouldShowExplorerSkeleton({ open: true, loaded: false, error: "", loading: false }),
+    true,
+  );
+  assert.equal(
+    explorerModule.shouldShowExplorerSkeleton({ open: true, loaded: true, error: "", loading: false }),
+    false,
+  );
+  assert.equal(
+    explorerModule.shouldShowExplorerSkeleton({ open: true, loaded: false, error: "offline", loading: false }),
+    false,
+  );
+});
+
 test("formats Bento base-unit prize pools without floating point loss", () => {
   assert.equal(formatExplorerPrize("25000000000000000000", "usdc"), "25 USDC");
   assert.equal(formatExplorerPrize(null, "credits"), "");
