@@ -1077,8 +1077,9 @@ button:disabled {
 .ended-market-notice {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 12px;
   margin: 0 14px 16px;
   padding: 13px;
@@ -1091,15 +1092,28 @@ button:disabled {
 
 .ended-market-notice div {
   display: grid;
-  gap: 3px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ended-market-notice small {
+  color: #4f4211;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .ended-market-notice strong {
-  font-size: 13px;
+  font-family: Bangers, Inter, sans-serif;
+  font-size: 21px;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
 .ended-market-notice span {
+  color: #3d3945;
   font-size: 11px;
   font-weight: 800;
   line-height: 1.35;

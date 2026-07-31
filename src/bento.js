@@ -141,6 +141,32 @@ export function isBentoMarketEnded(market, now = Date.now()) {
   return Number.isFinite(endTime) && endTime <= now;
 }
 
+export function marketResultSummary(market = {}) {
+  const winner = displayOutcome(market?.winner);
+  if (!winner) {
+    return {
+      eyebrow: "Bento final result",
+      title: "Final result pending",
+      detail: "Bento has marked this market final, but no resolved winner was published.",
+    };
+  }
+
+  const isBinaryOutcome = /^(yes|no)$/i.test(winner);
+  return {
+    eyebrow: "Bento final result",
+    title: isBinaryOutcome ? `Resolved outcome: ${winner}` : `Winner: ${winner}`,
+    detail: "Finalized from Bento result data.",
+  };
+}
+
+function displayOutcome(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  if (/^yes$/i.test(normalized)) return "Yes";
+  if (/^no$/i.test(normalized)) return "No";
+  return normalized;
+}
+
 export async function saveLeaderboardUser(user) {
   const payload = await postJson("/api/users", user);
   return payload.user;

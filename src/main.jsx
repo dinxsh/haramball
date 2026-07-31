@@ -39,6 +39,7 @@ import {
   initialBentoReadiness,
   isBentoMarketEnded,
   loginBentoWallet,
+  marketResultSummary,
   normalizeExternalLogin,
   normalizeBentoLogin,
   placeBentoBet,
@@ -136,6 +137,7 @@ function MarketApp() {
   const marketEnded = isBentoMarketEnded(market);
   const tokenDecimals = tokenDecimalsFromMarket(market);
   const amountWei = useMemo(() => humanToBaseUnits(stake, tokenDecimals), [stake, tokenDecimals]);
+  const finalResult = useMemo(() => marketResultSummary(market), [market]);
   const authed = Boolean(token && authMode === "wallet");
   const optionLabel = pick === 0 ? market?.optionA : pick === 1 ? market?.optionB : autoPick?.label || "";
   const secondsRemaining = Math.max(0, ROUND_SECONDS - elapsedSeconds);
@@ -898,7 +900,7 @@ function MarketApp() {
               {marketsLoading ? <MarketQuestionSkeleton /> : (
                 <div className="question-block">
                   <h1>{marketTitle}</h1>
-                  <p>{marketEnded ? "This market has ended. Open Explore to jump to live matches." : "One random side is chosen for a strict 15-second window."}</p>
+                  <p>{marketEnded ? finalResult.detail : "One random side is chosen for a strict 15-second window."}</p>
                 </div>
               )}
 
@@ -959,10 +961,10 @@ function MarketApp() {
                 <div className="ended-market-notice" role="status">
                   <Lock size={20} />
                   <div>
-                    <strong>Read-only result</strong>
-                    <span>{market?.winner ? `Winner: ${market.winner}` : "No bets, previews, cached activity, or mock tournament data are shown."}</span>
+                    <small>{finalResult.eyebrow}</small>
+                    <strong>{finalResult.title}</strong>
+                    <span>{finalResult.detail}</span>
                   </div>
-                  <button className="chip" onClick={openLiveExplore} type="button">Open Explore</button>
                 </div>
               )}
             </article>
@@ -992,9 +994,8 @@ function MarketApp() {
         {marketEnded ? (
           <section className="intro-panel ended-desktop-panel">
             <div className="eyebrow"><Lock size={16} /> Final</div>
-            <h2>This tournament has ended.</h2>
-            <p>The betting card is hidden. Open Explore to browse live matches and archived results.</p>
-            <button className="activate-button" onClick={openLiveExplore} type="button">Open Explore</button>
+            <h2>{finalResult.title}</h2>
+            <p>{finalResult.detail} This page is read-only now; ticket preview and placement are disabled.</p>
           </section>
         ) : (
           <>

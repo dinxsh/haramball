@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as bentoModule from "./bento.js";
-import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, normalizeBentoLogin, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
+import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, marketResultSummary, normalizeBentoLogin, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -88,6 +88,26 @@ test("treats a market past its API end time as ended", () => {
   assert.equal(isBentoMarketEnded({ status: "live", endTime: "2026-07-27T11:59:59.000Z" }, now), true);
   assert.equal(isBentoMarketEnded({ status: "live", endTime: "2026-07-27T12:00:01.000Z" }, now), false);
   assert.equal(isBentoMarketEnded({ status: "live", endTime: Math.floor((now - 1000) / 1000) }, now), true);
+});
+
+test("formats ended market result copy without raw all-caps noise", () => {
+  assert.deepEqual(
+    marketResultSummary({ winner: "NO", resultSource: "result.score.home-away" }),
+    {
+      eyebrow: "Bento final result",
+      title: "Resolved outcome: No",
+      detail: "Finalized from Bento result data.",
+    },
+  );
+  assert.deepEqual(
+    marketResultSummary({ optionA: "Spain", optionB: "Argentina", winner: "Argentina" }),
+    {
+      eyebrow: "Bento final result",
+      title: "Winner: Argentina",
+      detail: "Finalized from Bento result data.",
+    },
+  );
+  assert.equal(marketResultSummary({}).title, "Final result pending");
 });
 
 test("extracts a trailing parenthesized matchup for the hero", () => {
