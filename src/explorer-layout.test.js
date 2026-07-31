@@ -16,9 +16,13 @@ test("explorer results preserve natural card height instead of clipping content"
   assert.match(rule, /align-content:\s*start\s*;/);
 });
 
-test("archived selected schedules cannot collapse the explorer card list", () => {
-  const rule = cssRule(".explorer-selected-panel");
+test("explorer modal owns the long-page scroll surface", () => {
+  const modalRule = cssRule(".explorer-modal");
+  const resultsRule = cssRule(".explorer-results");
+  const selectedRule = cssRule(".explorer-selected-panel");
 
-  assert.match(rule, /max-height:\s*min\(420px,\s*45vh\)\s*;/);
-  assert.match(rule, /overflow-y:\s*auto\s*;/);
+  assert.match(modalRule, /overflow-y:\s*auto\s*;/);
+  assert.match(resultsRule, /overflow:\s*visible\s*;/);
+  assert.match(selectedRule, /max-height:\s*none\s*;/);
+  assert.match(selectedRule, /overflow:\s*visible\s*;/);
 });

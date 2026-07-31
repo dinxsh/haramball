@@ -2674,7 +2674,9 @@ button:disabled {
   max-height: calc(100vh - 44px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: #050507;
   font-family: var(--explorer-body);
   background:
@@ -2897,15 +2899,14 @@ button:disabled {
 }
 
 .explorer-results {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
   gap: 16px;
   padding: 8px 24px 28px;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: visible;
 }
 
 .explorer-card {
@@ -3196,8 +3197,8 @@ button.explorer-card-link {
 
 .explorer-selected-panel {
   flex: 0 1 auto;
-  max-height: min(420px, 45vh);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
   margin: 0 24px 24px;
   padding: 18px 20px 20px;
   background: linear-gradient(180deg, #fffdf5 0%, #f3f0e4 100%);
