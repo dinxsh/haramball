@@ -1,0 +1,82 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createBentoMarketAnalyticsHandler } from "./bento-market-analytics.js";
+import { createBentoSellEstimateHandler } from "./bento-sell-estimate.js";
+import { createBentoSellHandler } from "./bento-sell.js";
+import { createBentoUserSharesHandler } from "./bento-user-shares.js";
+
+test("market analytics route requires duelId and forwards query", async () => {
+  const missing = responseRecorder();
+  await createBentoMarketAnalyticsHandler(async () => ({}))({ headers: {}, url: "/api/bento-market-analytics" }, missing);
+  assert.equal(missing.statusCode, 400);
+
+  const response = responseRecorder();
+  let received;
+  const handler = createBentoMarketAnalyticsHandler(async (duelId) => {
+    received = duelId;
+    return { analytics: { duelId } };
+  });
+  await handler({ headers: {}, url: "/api/bento-market-analytics?duelId=duel-1" }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(received, "duel-1");
+  assert.deepEqual(JSON.parse(response.body), { analytics: { duelId: "duel-1" } });
+});
+
+test("user shares route forwards bearer token and duelId", async () => {
+  const response = responseRecorder();
+  let received;
+  const handler = createBentoUserSharesHandler(async (options) => {
+    received = options;
+    return { shares: [{ side: 0 }] };
+  });
+
+  await handler({ headers: { authorization: "Bearer jwt" }, url: "/api/bento-user-shares?duelId=duel-1" }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(received, { token: "jwt", duelId: "duel-1" });
+});
+
+test("sell estimate and sell routes forward idempotent JSON bodies", async () => {
+  const estimateResponse = responseRecorder();
+  let estimateBody;
+  await createBentoSellEstimateHandler(async (body) => {
+    estimateBody = body;
+    return { estimate: { ok: true } };
+  })({
+    headers: { authorization: "Bearer jwt" },
+    url: "/api/bento-sell-estimate",
+    [Symbol.asyncIterator]: async function* body() {
+      yield Buffer.from(JSON.stringify({ duelId: "duel-1", sharesIn: "10" }));
+    },
+  }, estimateResponse);
+
+  assert.equal(estimateResponse.statusCode, 200);
+  assert.deepEqual(estimateBody, { token: "jwt", duelId: "duel-1", sharesIn: "10" });
+
+  const sellResponse = responseRecorder();
+  let sellBody;
+  await createBentoSellHandler(async (body) => {
+    sellBody = body;
+    return { accepted: true };
+  })({
+    headers: { authorization: "Bearer jwt" },
+    url: "/api/bento-sell",
+    [Symbol.asyncIterator]: async function* body() {
+      yield Buffer.from(JSON.stringify({ idempotencyKey: "idem", sell: { duelId: "duel-1" } }));
+    },
+  }, sellResponse);
+
+  assert.equal(sellResponse.statusCode, 200);
+  assert.deepEqual(sellBody, { token: "jwt", idempotencyKey: "idem", sell: { duelId: "duel-1" } });
+});
+
+function responseRecorder() {
+  return {
+    statusCode: 0,
+    headers: {},
+    body: "",
+    setHeader(name, value) { this.headers[name] = value; },
+    end(value) { this.body = value; },
+  };
+}

@@ -28,12 +28,14 @@ import {
   estimateBentoBet,
   exchangeBentoWalletCode,
   extractEstimate,
+  fetchBentoMarketAnalytics,
   fetchBentoMarkets,
   fetchBentoPortfolio,
   fetchBentoReadiness,
+  fetchBentoUserShares,
   fetchLeaderboardUsers,
   fixtureFromMarket,
-  humanToWei,
+  humanToBaseUnits,
   initialBentoReadiness,
   isBentoMarketEnded,
   loginBentoWallet,
@@ -42,6 +44,7 @@ import {
   placeBentoBet,
   saveLeaderboardUser,
   shortAddress,
+  tokenDecimalsFromMarket,
   weiToHuman,
 } from "./bento";
 import ExplorerModal from "./ExplorerModal.jsx";
@@ -55,8 +58,12 @@ const PROFILE_STORAGE_KEY = "haramball-world-cup-profiles";
 const ACTIVE_PROFILE_STORAGE_KEY = "haramball-active-profile-id";
 const ACTIVITY_STORAGE_KEY = "haramball-activity-feed";
 const THEME_STORAGE_KEY = "haramball-theme";
+const SESSION_TOKEN_STORAGE_KEY = "haramball-session-token";
+const SESSION_WALLET_STORAGE_KEY = "haramball-session-wallet";
+const SESSION_ACCOUNT_STORAGE_KEY = "haramball-session-account";
 const ROUND_SECONDS = 15;
 const LOCKOUT_SECONDS = Math.ceil(ROUND_SECONDS * 0.15);
+const MIN_BENTO_STAKE = 5;
 const TOKEN_OPTIONS = [
   { symbol: "USDC", name: "USD Coin", network: "Base", icon: "$" },
 ];
@@ -84,7 +91,7 @@ function MarketApp() {
   const [linkLoading, setLinkLoading] = useState(false);
   const [walletOptions, setWalletOptions] = useState([]);
   const [walletOptionsLoading, setWalletOptionsLoading] = useState(true);
-  const [stake, setStake] = useState("1");
+  const [stake, setStake] = useState(String(MIN_BENTO_STAKE));
   const [stakeCurrency, setStakeCurrency] = useState("USDC");
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
   const [tokenSearch, setTokenSearch] = useState("");
@@ -94,6 +101,9 @@ function MarketApp() {
   const [placing, setPlacing] = useState(false);
   const [portfolio, setPortfolio] = useState(null);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [marketAnalytics, setMarketAnalytics] = useState(null);
+  const [marketAnalyticsError, setMarketAnalyticsError] = useState("");
+  const [userShares, setUserShares] = useState(null);
   const [profiles, setProfiles] = useState(loadProfiles);
   const [profilesLoading, setProfilesLoading] = useState(true);
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || "");
@@ -124,7 +134,8 @@ function MarketApp() {
 
   const market = markets[marketIndex] || null;
   const marketEnded = isBentoMarketEnded(market);
-  const amountWei = useMemo(() => humanToWei(stake), [stake]);
+  const tokenDecimals = tokenDecimalsFromMarket(market);
+  const amountWei = useMemo(() => humanToBaseUnits(stake, tokenDecimals), [stake, tokenDecimals]);
   const authed = Boolean(token && authMode === "wallet");
   const optionLabel = pick === 0 ? market?.optionA : pick === 1 ? market?.optionB : autoPick?.label || "";
   const secondsRemaining = Math.max(0, ROUND_SECONDS - elapsedSeconds);
@@ -171,6 +182,21 @@ function MarketApp() {
   const openLiveExplore = () => setExplorerOpen(true);
 
   useEffect(() => {
+    if (token) sessionStorage.setItem(SESSION_TOKEN_STORAGE_KEY, token);
+    else sessionStorage.removeItem(SESSION_TOKEN_STORAGE_KEY);
+  }, [token]);
+
+  useEffect(() => {
+    if (wallet) sessionStorage.setItem(SESSION_WALLET_STORAGE_KEY, wallet);
+    else sessionStorage.removeItem(SESSION_WALLET_STORAGE_KEY);
+  }, [wallet]);
+
+  useEffect(() => {
+    if (managedAccount) sessionStorage.setItem(SESSION_ACCOUNT_STORAGE_KEY, managedAccount);
+    else sessionStorage.removeItem(SESSION_ACCOUNT_STORAGE_KEY);
+  }, [managedAccount]);
+
+  useEffect(() => {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
   }, [profiles]);
 
@@ -211,7 +237,7 @@ function MarketApp() {
     if (!market || marketEnded || !autoPick) return undefined;
 
     setEstimate(null);
-    if (!authed || Number(stake) <= 0 || lockoutActive) return undefined;
+    if (!authed || Number(stake) < MIN_BENTO_STAKE || lockoutActive) return undefined;
 
     const requestId = estimateRequestRef.current + 1;
     estimateRequestRef.current = requestId;
@@ -259,6 +285,49 @@ function MarketApp() {
       active = false;
     };
   }, [amountWei, authed, autoPick, lockoutActive, market, marketEnded, stake, stakeCurrency, token]);
+
+  useEffect(() => {
+    if (!market?.duelId) {
+      setMarketAnalytics(null);
+      setMarketAnalyticsError("");
+      return undefined;
+    }
+
+    let active = true;
+    setMarketAnalyticsError("");
+    fetchBentoMarketAnalytics(market.duelId)
+      .then((payload) => {
+        if (active) setMarketAnalytics(payload.analytics || null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMarketAnalytics(null);
+        setMarketAnalyticsError(error.message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [market?.duelId]);
+
+  useEffect(() => {
+    if (!token || !market?.duelId) {
+      setUserShares(null);
+      return undefined;
+    }
+
+    let active = true;
+    fetchBentoUserShares({ token, duelId: market.duelId })
+      .then((payload) => {
+        if (active) setUserShares(payload.shares || null);
+      })
+      .catch(() => {
+        if (active) setUserShares(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [market?.duelId, token]);
 
   useEffect(() => {
     let alive = true;
@@ -469,8 +538,8 @@ function MarketApp() {
       showToast(authMode === "link" ? "Use browser wallet to trade" : "Connect wallet before previewing");
       return;
     }
-    if (Number(stake) <= 0) {
-      showToast("Enter a stake above 0");
+    if (Number(stake) < MIN_BENTO_STAKE) {
+      showToast(`Enter at least ${MIN_BENTO_STAKE} ${stakeCurrency}`);
       return;
     }
 
@@ -529,6 +598,7 @@ function MarketApp() {
       betAmount: amountWei,
       betAmountUsdc: amountWei,
       slippageBps: 100,
+      tokenDecimals,
       collateralMode: market.raw?.collateralMode || market.raw?.collateral_mode || undefined,
     };
 
@@ -909,6 +979,7 @@ function MarketApp() {
               stake={stake}
               stakeCurrency={stakeCurrency}
             />
+            <MarketIntelCard analytics={marketAnalytics} error={marketAnalyticsError} shares={userShares} />
             <FeedCard feed={feed} loading={portfolioLoading} portfolio={portfolio} />
             <LeaderboardCard loading={profilesLoading} profiles={leaderboard} />
               </>
@@ -1016,7 +1087,7 @@ function LeaderboardCard({ loading = false, profiles, wide = false }) {
     <article className={`leaderboard-card ${wide ? "wide" : ""}`}>
       <h2>
         <Trophy size={17} />
-        Top 5
+        Local Top 5
         <span className="section-tag">Local cache</span>
       </h2>
       <div className="leaderboard-list">
@@ -1029,7 +1100,7 @@ function LeaderboardCard({ loading = false, profiles, wide = false }) {
             <span className={`rank rank-${index + 1}`}>{index < 3 ? <Medal size={15} /> : index + 1}</span>
             <div>
               <strong>{profile.name}</strong>
-              <small>@{profile.username || usernameFrom(profile.name)} - {profile.team} - {profile.wins}W / {profile.losses}L</small>
+              <small>Local @{profile.username || usernameFrom(profile.name)} - {profile.team} - {profile.wins}W / {profile.losses}L</small>
             </div>
             <b>{profile.wins}-{profile.losses}</b>
           </a>
@@ -1388,7 +1459,7 @@ function FeedCard({ feed, loading, portfolio }) {
   const activity = portfolio ? [{ minute: timeStamp(), label: "Account refreshed" }, ...feed] : feed;
   return (
     <article className="feed-card">
-      <h2>Live Feed</h2>
+      <h2>Local Activity</h2>
       <div className="feed-list">
         {loading ? (
           <FeedSkeleton />
@@ -1405,6 +1476,35 @@ function FeedCard({ feed, loading, portfolio }) {
             </div>
           ))
         )}
+      </div>
+    </article>
+  );
+}
+
+function MarketIntelCard({ analytics, error, shares }) {
+  const snapshots = listFrom(analytics?.yesPercentageSnapshots?.data ?? analytics?.yesPercentageSnapshots?.snapshots ?? analytics?.yesPercentageSnapshots);
+  const latestSnapshot = snapshots.at(-1) || {};
+  const yesPercent = latestSnapshot.yesPercentage ?? latestSnapshot.yes_percentage ?? latestSnapshot.percentage;
+  const liquidity = analytics?.sellUnlockLiquidity?.liquidity ?? analytics?.sellUnlockLiquidity?.amount ?? analytics?.sellUnlockLiquidity?.data?.liquidity;
+  const shareRows = listFrom(shares?.balances ?? shares?.shares ?? shares?.data ?? shares);
+
+  return (
+    <article className="market-intel-card">
+      <h2>Bento Market Intel</h2>
+      {error ? <p className="market-intel-error">{error}</p> : null}
+      <div className="market-intel-grid">
+        <span>
+          <small>YES history</small>
+          <b>{yesPercent === undefined ? "No chart" : `${Number(yesPercent).toFixed(1)}%`}</b>
+        </span>
+        <span>
+          <small>Sell liquidity</small>
+          <b>{liquidity === undefined ? "Unavailable" : String(liquidity)}</b>
+        </span>
+        <span>
+          <small>Your shares</small>
+          <b>{shareRows.length ? `${shareRows.length} row${shareRows.length === 1 ? "" : "s"}` : "None confirmed"}</b>
+        </span>
       </div>
     </article>
   );
@@ -1651,6 +1751,14 @@ function safeRead(read) {
   } catch {
     return null;
   }
+}
+
+function listFrom(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value.data)) return value.data;
+  if (Array.isArray(value.items)) return value.items;
+  return [value];
 }
 
 function receiptLabel(key) {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as bentoModule from "./bento.js";
-import { extractEstimate, humanToWei, isBentoMarketEnded, normalizeBentoLogin, weiToHuman } from "./bento.js";
+import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, normalizeBentoLogin, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -13,6 +13,14 @@ test("keeps partial or invalid stake input from crashing render", () => {
   assert.equal(humanToWei(""), "0");
   assert.equal(humanToWei("."), "0");
   assert.equal(humanToWei("1e2"), "0");
+});
+
+test("converts human amounts using Bento collateral decimals", () => {
+  assert.equal(humanToBaseUnits("1.23", 6), "1230000");
+  assert.equal(humanToBaseUnits("1.23", 18), "1230000000000000000");
+  assert.equal(tokenDecimalsFromMarket({ tokenDecimals: 6 }), 6);
+  assert.equal(tokenDecimalsFromMarket({ raw: { collateralMode: "credits" } }), 18);
+  assert.equal(tokenDecimalsFromMarket({ raw: { collateralMode: "usdc", chain: "base" } }), 6);
 });
 
 test("formats Bento base units for compact display", () => {
@@ -93,7 +101,16 @@ test("extracts a trailing parenthesized matchup for the hero", () => {
       home: "Portugal",
       away: "Spain",
       label: "Portugal vs Spain",
+      source: "title-inferred",
+      inferred: true,
     },
+  );
+});
+
+test("marks option fallback fixture labels as inferred", () => {
+  assert.deepEqual(
+    fixtureFromMarket({ optionA: "YES", optionB: "NO" }),
+    { home: "YES", away: "NO", label: "YES vs NO", source: "option-fallback", inferred: true },
   );
 });
 

@@ -64,6 +64,15 @@ test("normalizes Bento market list rows around duelId and option labels", () => 
       winner: "YES",
       homeScore: 3,
       awayScore: 1,
+      resultSource: "score.home-away",
+      fieldCompleteness: {
+        title: true,
+        optionA: true,
+        optionB: true,
+        category: true,
+        endTime: false,
+      },
+      tokenDecimals: 18,
       liquidity: "1000000000000000000",
       endTime: undefined,
       raw: {
@@ -77,6 +86,38 @@ test("normalizes Bento market list rows around duelId and option labels", () => 
         totalLiquidity: "1000000000000000000",
       },
     },
+  );
+});
+
+test("normalizes Bento markets with provenance instead of hiding missing fields", () => {
+  const market = normalizeBentoMarket({
+    duelId: "duel-missing",
+    options: [{ label: "Home" }],
+    collateralMode: "credits",
+  });
+
+  assert.deepEqual(market.fieldCompleteness, {
+    title: false,
+    optionA: true,
+    optionB: false,
+    category: false,
+    endTime: false,
+  });
+  assert.equal(market.title, "");
+  assert.equal(market.optionA, "Home");
+  assert.equal(market.optionB, "");
+  assert.equal(market.category, "");
+  assert.equal(market.tokenDecimals, 18);
+});
+
+test("marks confidently sourced score results separately from ambiguous aliases", () => {
+  assert.equal(
+    normalizeBentoMarket({ duelId: "a", optionA: "YES", optionB: "NO", result: { score: { home: 1, away: 0 } } }).resultSource,
+    "result.score.home-away",
+  );
+  assert.equal(
+    normalizeBentoMarket({ duelId: "b", optionA: "YES", optionB: "NO", score: { optionA: 1, optionB: 0 } }).resultSource,
+    "ambiguous",
   );
 });
 

@@ -126,6 +126,74 @@ export async function fetchBentoTournament(slug, {
   };
 }
 
+export async function fetchBentoTournamentStatus({ slug, token, wallet } = {}) {
+  if (!token) throw httpError(401, "Bento login is required");
+  const { sdk, source, isF1 } = await resolveTournamentForSlug(slug, token);
+
+  if (isF1) {
+    const [eligibility, myPicks, payouts] = await Promise.all([
+      wallet ? sdk.tournaments.f1.getEligibility(source.id, wallet).catch((error) => ({ error: error.message })) : null,
+      wallet ? sdk.tournaments.f1.getMyPicks(source.id, wallet).catch((error) => ({ error: error.message })) : null,
+      sdk.tournaments.f1.getPayouts(source.id).catch((error) => ({ error: error.message })),
+    ]);
+    return { status: { kind: "f1", tournamentId: source.id, eligibility, myPicks, payouts } };
+  }
+
+  const [eligibility, myStatus, formatInfo, payouts] = await Promise.all([
+    sdk.tournaments.tournaments.getEligibility(source.id).catch((error) => ({ error: error.message })),
+    sdk.tournaments.tournaments.getMyStatus(source.id).catch((error) => ({ error: error.message })),
+    sdk.tournaments.tournaments.getFormatInfo(source.id).catch((error) => ({ error: error.message })),
+    sdk.tournaments.tournaments.getPayouts(source.id).catch((error) => ({ error: error.message })),
+  ]);
+  return { status: { kind: "tournament", tournamentId: source.id, eligibility, myStatus, formatInfo, payouts } };
+}
+
+export async function enterBentoTournament({ slug, token, wallet, ...body } = {}) {
+  if (!token) throw httpError(401, "Bento login is required");
+  const { sdk, source, isF1 } = await resolveTournamentForSlug(slug, token);
+  const payload = {
+    ...body,
+    ...(wallet ? { wallet } : {}),
+  };
+  const entry = isF1
+    ? await sdk.tournaments.f1.enter(source.id, payload)
+    : await sdk.tournaments.tournaments.enter(source.id, payload);
+  return { entry: { kind: isF1 ? "f1" : "tournament", tournamentId: source.id, raw: entry } };
+}
+
+export async function fetchBentoMarketAnalytics(duelId) {
+  if (!duelId) throw httpError(400, "duelId is required");
+  const sdk = createPublicBentoSdk();
+  const [yesPercentageSnapshots, sellUnlockLiquidity, platformReport, protocolSummary] = await Promise.all([
+    sdk.public.publicBets.getYesPercentageSnapshots(duelId).catch((error) => ({ error: error.message })),
+    sdk.public.publicBets.getSellUnlockLiquidity(duelId).catch((error) => ({ error: error.message })),
+    sdk.public.analytics.getPlatformReport().catch((error) => ({ error: error.message })),
+    sdk.public.protocolStats.getSummary().catch((error) => ({ error: error.message })),
+  ]);
+  return { analytics: { duelId, yesPercentageSnapshots, sellUnlockLiquidity, platformReport, protocolSummary } };
+}
+
+export async function fetchBentoUserShares({ token, duelId }) {
+  if (!token) throw httpError(401, "Bento login is required");
+  if (!duelId) throw httpError(400, "duelId is required");
+  const sdk = createUserBentoSdk(token);
+  return { shares: await sdk.user.bets.getUserShares({ duelId }) };
+}
+
+export async function estimateBentoSell({ token, ...body }) {
+  if (!token) throw httpError(401, "Bento login is required");
+  if (!body.duelId) throw httpError(400, "duelId is required");
+  const sdk = createUserBentoSdk(token);
+  return sdk.user.bets.estimateSell(normalizeSellBetNumbers(body));
+}
+
+export async function sellBentoBet({ token, idempotencyKey, sell }) {
+  if (!token) throw httpError(401, "Bento login is required");
+  if (!sell?.duelId) throw httpError(400, "duelId is required");
+  const sdk = createUserBentoSdk(token);
+  return sdk.user.bets.sellBet(normalizeSellBetNumbers(sell), idempotencyKey ? { idempotencyKey } : undefined);
+}
+
 export async function fetchBentoMarket(duelId) {
   if (!duelId) throw httpError(400, "duelId is required");
 
@@ -273,6 +341,19 @@ function createUserBentoSdk(token) {
   });
 }
 
+async function resolveTournamentForSlug(slug, token) {
+  if (!slug) throw httpError(400, "Tournament slug is required", true);
+  const sdk = token ? createUserBentoSdk(token) : createPublicBentoSdk();
+  if (!sdk.tournaments) throw httpError(503, "Tournament details require the tournaments host", true);
+  const payload = await sdk.tournaments.tournaments.list({ limit: 100, offset: 0 });
+  const tournaments = Array.isArray(payload?.tournaments) ? payload.tournaments : [];
+  const source = resolveTournamentSlug(tournaments, slug);
+  if (!source) throw httpError(404, "Verified tournament not found", true);
+  const isF1 = String(source.gameType || "").toUpperCase() === "F1_GRID_PREDICTOR"
+    || /^formula\s*1$/i.test(String(source.sport || ""));
+  return { sdk, source, isF1 };
+}
+
 function requireConfiguredBento() {
   const config = getBentoServerConfig();
   if (!config.configured) {
@@ -283,32 +364,44 @@ function requireConfiguredBento() {
 
 export function normalizeBentoMarket(item = {}) {
   const duelId = item.duelId ?? item.duel_id ?? item.marketId ?? item.id;
-  const optionA = item.optionA ?? item.option_a ?? item.options?.[0] ?? item.outcomes?.[0] ?? {};
-  const optionB = item.optionB ?? item.option_b ?? item.options?.[1] ?? item.outcomes?.[1] ?? {};
-  const score = item.score ?? item.scores ?? item.result?.score ?? item.result?.scores ?? item.raw?.score ?? item.raw?.scores ?? {};
+  const optionA = item.optionA ?? item.option_a ?? item.options?.[0] ?? item.outcomes?.[0];
+  const optionB = item.optionB ?? item.option_b ?? item.options?.[1] ?? item.outcomes?.[1];
+  const scoreInfo = scoreFrom(item);
+  const score = scoreInfo.value;
   const winner = item.winner ?? item.result?.winner ?? item.outcome ?? item.result?.outcome ?? "";
-  const title =
+  const rawTitle =
     item.title ??
     item.question ??
     item.betString ??
     item.bet_string ??
     item.name ??
-    item.description ??
-    `${labelFrom(optionA, "YES")} vs ${labelFrom(optionB, "NO")}`;
+    item.description;
+  const category = item.category ?? item.sport ?? item.type ?? "";
+  const endTime = item.endTime ?? item.endsAt ?? item.expiry ?? item.closeTime;
+  const fieldCompleteness = {
+    title: hasMeaningfulValue(rawTitle),
+    optionA: hasMeaningfulValue(optionA),
+    optionB: hasMeaningfulValue(optionB),
+    category: hasMeaningfulValue(category),
+    endTime: hasMeaningfulValue(endTime),
+  };
 
   return {
     id: item.id ?? duelId,
     duelId: duelId ? String(duelId) : "",
-    title,
-    category: item.category ?? item.sport ?? item.type ?? "Prediction",
+    title: rawTitle ? String(rawTitle) : "",
+    category: category ? String(category) : "",
     status: item.status ?? item.state ?? item.marketStatus ?? "listed",
-    optionA: labelFrom(optionA, "YES"),
-    optionB: labelFrom(optionB, "NO"),
+    optionA: labelFrom(optionA, ""),
+    optionB: labelFrom(optionB, ""),
     winner: winnerFrom(winner, optionA, optionB),
     homeScore: numberOrNull(score.home ?? score.a ?? score.optionA ?? item.homeScore ?? item.home_score),
     awayScore: numberOrNull(score.away ?? score.b ?? score.optionB ?? item.awayScore ?? item.away_score),
+    resultSource: scoreInfo.source,
+    fieldCompleteness,
+    tokenDecimals: tokenDecimalsFromMarket(item),
     liquidity: item.liquidity ?? item.pool ?? item.totalLiquidity ?? item.volume,
-    endTime: item.endTime ?? item.endsAt ?? item.expiry ?? item.closeTime,
+    endTime,
     raw: item,
   };
 }
@@ -340,7 +433,7 @@ function numberOrNull(value) {
 }
 
 function winnerFrom(winner, optionA, optionB) {
-  if (typeof winner === "number") return winner === 0 ? labelFrom(optionA, "YES") : labelFrom(optionB, "NO");
+  if (typeof winner === "number") return winner === 0 ? labelFrom(optionA, "") : labelFrom(optionB, "");
   if (typeof winner === "string") return winner.trim();
   if (winner && typeof winner === "object") {
     return winner.name || winner.label || winner.title || winner.option || "";
@@ -348,8 +441,41 @@ function winnerFrom(winner, optionA, optionB) {
   return "";
 }
 
+function scoreFrom(item = {}) {
+  if (item.result?.score) return { value: item.result.score, source: "result.score.home-away" };
+  if (item.result?.scores) return { value: item.result.scores, source: "result.scores.home-away" };
+  if (item.raw?.score) return { value: item.raw.score, source: "raw.score.home-away" };
+  if (item.raw?.scores) return { value: item.raw.scores, source: "raw.scores.home-away" };
+  if (item.score) return { value: item.score, source: scoreHasHomeAway(item.score) ? "score.home-away" : "ambiguous" };
+  if (item.scores) return { value: item.scores, source: scoreHasHomeAway(item.scores) ? "scores.home-away" : "ambiguous" };
+  if (item.homeScore !== undefined || item.home_score !== undefined || item.awayScore !== undefined || item.away_score !== undefined) {
+    return { value: {}, source: "home-away-fields" };
+  }
+  return { value: {}, source: "" };
+}
+
+function scoreHasHomeAway(score = {}) {
+  return (score.home !== undefined || score.away !== undefined) && score.optionA === undefined && score.optionB === undefined;
+}
+
+function tokenDecimalsFromMarket(item = {}) {
+  const explicit = Number(item.tokenDecimals ?? item.token_decimals ?? item.raw?.tokenDecimals ?? item.raw?.token_decimals);
+  if (Number.isInteger(explicit) && explicit >= 0 && explicit <= 30) return explicit;
+  const collateral = String(item.collateralMode ?? item.collateral_mode ?? item.raw?.collateralMode ?? item.raw?.collateral_mode ?? "").toLowerCase();
+  const chain = String(item.chain ?? item.network ?? item.raw?.chain ?? item.raw?.network ?? "").toLowerCase();
+  if (collateral === "credits") return 18;
+  if (collateral === "usdc" && chain === "base") return 6;
+  return 18;
+}
+
 function hasValue(value) {
   return Boolean(value && !String(value).startsWith("replace_with"));
+}
+
+function hasMeaningfulValue(value) {
+  if (value === undefined || value === null || value === "") return false;
+  if (typeof value === "object") return Boolean(labelFrom(value, ""));
+  return true;
 }
 
 function httpError(statusCode, message, expose = statusCode < 500) {
@@ -388,6 +514,16 @@ function normalizePlaceBetNumbers(bet) {
     minSharesOut: numberFrom(bet.minSharesOut),
     quoteTimestamp: bet.quoteTimestamp === undefined ? undefined : Number(bet.quoteTimestamp),
     slippageBps: Number(bet.slippageBps ?? 100),
+  };
+}
+
+function normalizeSellBetNumbers(sell) {
+  return {
+    ...sell,
+    optionIndex: sell.optionIndex === undefined ? undefined : Number(sell.optionIndex),
+    sharesIn: numberFrom(sell.sharesIn),
+    minAmountOut: numberFrom(sell.minAmountOut),
+    slippageBps: sell.slippageBps === undefined ? undefined : Number(sell.slippageBps),
   };
 }
 

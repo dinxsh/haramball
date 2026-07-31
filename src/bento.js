@@ -1,4 +1,5 @@
-const WEI_PER_TOKEN = 10n ** 18n;
+const DEFAULT_TOKEN_DECIMALS = 18;
+const WEI_PER_TOKEN = 10n ** BigInt(DEFAULT_TOKEN_DECIMALS);
 
 export const initialBentoReadiness = {
   baseUrl: "https://internal-server.bento.fun",
@@ -26,6 +27,14 @@ export async function fetchBentoMarket(duelId) {
   return payload.market;
 }
 
+export async function fetchBentoMarketAnalytics(duelId) {
+  return fetchJson(`/api/bento-market-analytics?duelId=${encodeURIComponent(duelId)}`);
+}
+
+export async function fetchBentoUserShares({ token, duelId }) {
+  return fetchJson(`/api/bento-user-shares?duelId=${encodeURIComponent(duelId)}`, token);
+}
+
 export function marketIndexFromDuelId(markets = [], duelId = "") {
   const index = markets.findIndex((market) => String(market?.duelId) === String(duelId));
   return index >= 0 ? index : 0;
@@ -35,7 +44,7 @@ export function fixtureFromMarket(market) {
   if (market?.raw?.home || market?.raw?.away) {
     const home = market.raw.home || "Live";
     const away = market.raw.away || "Market";
-    return { home, away, label: `${home} vs ${away}` };
+    return { home, away, label: `${home} vs ${away}`, source: "bento", inferred: false };
   }
 
   const title = String(market?.title || "");
@@ -44,12 +53,12 @@ export function fixtureFromMarket(market) {
   if (versus) {
     const home = cleanTeamName(versus[1]);
     const away = cleanTeamName(versus[2]);
-    return { home, away, label: `${home} vs ${away}` };
+    return { home, away, label: `${home} vs ${away}`, source: "title-inferred", inferred: true };
   }
 
   const home = market ? market.optionA || "Home" : "Team X";
   const away = market ? market.optionB || "Away" : "Team Y";
-  return { home, away, label: `${home} vs ${away}` };
+  return { home, away, label: `${home} vs ${away}`, source: "option-fallback", inferred: true };
 }
 
 function cleanTeamName(value) {
@@ -85,6 +94,14 @@ export async function placeBentoBet({ token, idempotencyKey, bet }) {
 
 export async function fetchBentoPortfolio({ token, account } = {}) {
   return postJson("/api/bento-portfolio", { account }, token);
+}
+
+export async function estimateBentoSell({ token, ...body }) {
+  return postJson("/api/bento-sell-estimate", body, token);
+}
+
+export async function sellBentoBet({ token, idempotencyKey, sell }) {
+  return postJson("/api/bento-sell", { idempotencyKey, sell }, token);
 }
 
 export async function fetchLeaderboardUsers() {
@@ -142,13 +159,19 @@ export async function recordLeaderboardResult({ id, result = "win" }) {
 }
 
 export function humanToWei(value) {
+  return humanToBaseUnits(value, DEFAULT_TOKEN_DECIMALS);
+}
+
+export function humanToBaseUnits(value, decimals = DEFAULT_TOKEN_DECIMALS) {
   const normalized = String(value ?? "").trim();
   if (!/^\d*(\.\d*)?$/.test(normalized)) return "0";
+  const safeDecimals = Math.max(0, Math.min(30, Number.parseInt(decimals, 10) || DEFAULT_TOKEN_DECIMALS));
 
   const [wholeRaw, fractionRaw = ""] = normalized.split(".");
   const whole = BigInt(wholeRaw || "0");
-  const fraction = BigInt((fractionRaw.replace(/\D/g, "").slice(0, 18).padEnd(18, "0")) || "0");
-  return String(whole * WEI_PER_TOKEN + fraction);
+  const base = 10n ** BigInt(safeDecimals);
+  const fraction = BigInt((fractionRaw.replace(/\D/g, "").slice(0, safeDecimals).padEnd(safeDecimals, "0")) || "0");
+  return String(whole * base + fraction);
 }
 
 export function weiToHuman(value) {
@@ -160,6 +183,16 @@ export function weiToHuman(value) {
   } catch {
     return "0";
   }
+}
+
+export function tokenDecimalsFromMarket(market = {}) {
+  const explicit = Number(market.tokenDecimals ?? market.raw?.tokenDecimals ?? market.raw?.token_decimals);
+  if (Number.isInteger(explicit) && explicit >= 0 && explicit <= 30) return explicit;
+  const collateral = String(market.collateralMode ?? market.raw?.collateralMode ?? market.raw?.collateral_mode ?? "").toLowerCase();
+  const chain = String(market.chain ?? market.network ?? market.raw?.chain ?? market.raw?.network ?? "").toLowerCase();
+  if (collateral === "credits") return 18;
+  if (collateral === "usdc" && chain === "base") return 6;
+  return DEFAULT_TOKEN_DECIMALS;
 }
 
 export function normalizeBentoLogin(payload = {}) {
@@ -204,8 +237,13 @@ export function shortAddress(address) {
   return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+async function fetchJson(url, token) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
   return parseResponse(response);
 }
 

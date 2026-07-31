@@ -916,6 +916,7 @@ button:disabled {
 .cycle-card,
 .settlement-card,
 .feed-card,
+.market-intel-card,
 .status-card,
 .leaderboard-card,
 .profile-card,
@@ -944,6 +945,7 @@ button:disabled {
 .cycle-card::after,
 .settlement-card::after,
 .feed-card::after,
+.market-intel-card::after,
 .status-card::after,
 .leaderboard-card::after,
 .profile-card::after,
@@ -1370,6 +1372,7 @@ button:disabled {
 
 .settlement-card,
 .feed-card,
+.market-intel-card,
 .leaderboard-card,
 .profile-card,
 .profile-activity-card {
@@ -1378,6 +1381,7 @@ button:disabled {
 
 .settlement-card h2,
 .feed-card h2,
+.market-intel-card h2,
 .leaderboard-card h2,
 .profile-card h2,
 .profile-activity-card h2,
@@ -1665,6 +1669,48 @@ button:disabled {
 
 .feed-card .feed-list {
   justify-items: center;
+}
+
+.market-intel-card {
+  display: grid;
+  gap: 12px;
+}
+
+.market-intel-error {
+  margin: 0;
+  color: #7c1d1d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.market-intel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.market-intel-grid span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  background: #f0ecdf;
+  border: 1px solid rgba(5, 5, 7, 0.24);
+  border-radius: 6px;
+}
+
+.market-intel-grid small {
+  color: #6a6254;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.market-intel-grid b {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .feed-item {
@@ -4017,6 +4063,39 @@ button.explorer-card-link {
   font-weight: 700;
 }
 
+.tournament-entry-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 14px;
+  align-items: center;
+  margin: 16px;
+  padding: 15px;
+  background: #f5f0e3;
+  border: 1px solid rgba(5, 5, 7, 0.58);
+  border-radius: 12px;
+}
+
+.tournament-entry-panel strong {
+  min-width: 0;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 22px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.tournament-entry-panel span {
+  grid-column: 1;
+  color: #625d56;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.tournament-entry-panel .tournament-enter-action {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 .tournament-data-unavailable,
 .tournament-route-state {
   margin: 16px;
@@ -4099,6 +4178,8 @@ button.explorer-card-link {
   .tournament-round.no-number { grid-template-columns: 1fr; }
   .tournament-round-number { width: 38px; height: 38px; }
   .tournament-round-dates { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tournament-entry-panel { grid-template-columns: 1fr; }
+  .tournament-entry-panel .tournament-enter-action { grid-column: 1; grid-row: auto; width: fit-content; }
   .tournament-route-loading { padding: 18px 14px; }
   .tournament-route-loading .hero { height: 280px; }
 }
@@ -4527,6 +4608,10 @@ button.explorer-card-link {
   }
 
   .explorer-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-intel-grid {
     grid-template-columns: 1fr;
   }
 

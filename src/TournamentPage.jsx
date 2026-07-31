@@ -10,9 +10,13 @@ import {
   MapPin,
   Trophy,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
-import { fetchTournamentDetail, formatExplorerDate, formatExplorerPrize } from "./explorer.js";
+import { enterTournament, fetchTournamentDetail, fetchTournamentStatus, formatExplorerDate, formatExplorerPrize } from "./explorer.js";
+
+const SESSION_TOKEN_STORAGE_KEY = "haramball-session-token";
+const SESSION_WALLET_STORAGE_KEY = "haramball-session-wallet";
 
 export default function TournamentPage({ slug }) {
   return <TournamentRoute slug={slug} />;
@@ -33,6 +37,11 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState("");
+  const [sessionAuth, setSessionAuth] = useState(() => readTournamentSession());
+  const [tournamentStatus, setTournamentStatus] = useState(null);
+  const [tournamentStatusLoading, setTournamentStatusLoading] = useState(false);
+  const [tournamentStatusError, setTournamentStatusError] = useState("");
+  const [entering, setEntering] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -63,6 +72,59 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
     return () => { active = false; };
   }, [slug, leaderboardPage]);
 
+  useEffect(() => {
+    setSessionAuth(readTournamentSession());
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug || !sessionAuth.token) {
+      setTournamentStatus(null);
+      setTournamentStatusError("");
+      setTournamentStatusLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    setTournamentStatusLoading(true);
+    setTournamentStatusError("");
+    fetchTournamentStatus(slug, sessionAuth)
+      .then((status) => {
+        if (active) setTournamentStatus(status);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        setTournamentStatus(null);
+        setTournamentStatusError(loadError.message || "Tournament status unavailable");
+      })
+      .finally(() => {
+        if (active) setTournamentStatusLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [sessionAuth.token, sessionAuth.wallet, slug]);
+
+  const handleEnterTournament = async () => {
+    if (!tournament || !sessionAuth.token) return;
+    setEntering(true);
+    setTournamentStatusError("");
+    try {
+      await enterTournament({
+        token: sessionAuth.token,
+        wallet: sessionAuth.wallet,
+        slug: tournament.slug,
+        stakeAsset: tournament.stakeAsset || "credits",
+      });
+      const status = await fetchTournamentStatus(tournament.slug, sessionAuth);
+      setTournamentStatus(status);
+    } catch (entryError) {
+      setTournamentStatusError(entryError.message || "Tournament entry failed");
+    } finally {
+      setEntering(false);
+    }
+  };
+
   return dialog ? (
     <section className="tournament-route-shell tournament-route-shell-dialog" aria-busy={loading}>
       <div className="tournament-route-panel tournament-route-panel-dialog">
@@ -83,10 +145,16 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
         ) : null}
         {!loading && tournament ? (
           <TournamentContent
+            entering={entering}
+            onEnterTournament={handleEnterTournament}
             leaderboardError={leaderboardError}
             leaderboardLoading={leaderboardLoading}
             onLeaderboardPageChange={setLeaderboardPage}
+            sessionAuth={sessionAuth}
             tournament={tournament}
+            tournamentStatus={tournamentStatus}
+            tournamentStatusError={tournamentStatusError}
+            tournamentStatusLoading={tournamentStatusLoading}
           />
         ) : null}
       </div>
@@ -109,10 +177,16 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
         ) : null}
         {!loading && tournament ? (
           <TournamentContent
+            entering={entering}
+            onEnterTournament={handleEnterTournament}
             leaderboardError={leaderboardError}
             leaderboardLoading={leaderboardLoading}
             onLeaderboardPageChange={setLeaderboardPage}
+            sessionAuth={sessionAuth}
             tournament={tournament}
+            tournamentStatus={tournamentStatus}
+            tournamentStatusError={tournamentStatusError}
+            tournamentStatusLoading={tournamentStatusLoading}
           />
         ) : null}
       </section>
@@ -120,7 +194,18 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
   );
 }
 
-function TournamentContent({ leaderboardError, leaderboardLoading, onLeaderboardPageChange, tournament }) {
+function TournamentContent({
+  entering,
+  leaderboardError,
+  leaderboardLoading,
+  onEnterTournament,
+  onLeaderboardPageChange,
+  sessionAuth,
+  tournament,
+  tournamentStatus,
+  tournamentStatusError,
+  tournamentStatusLoading,
+}) {
   const prize = formatExplorerPrize(tournament.prizePool, tournament.stakeAsset);
   const isEnded = tournament.status === "ended";
 
@@ -133,7 +218,7 @@ function TournamentContent({ leaderboardError, leaderboardLoading, onLeaderboard
             {tournament.league ? <span>{tournament.league}</span> : null}
             <b><StatusIcon status={tournament.status} />{tournament.status}</b>
           </div>
-          <a className="tournament-enter-action tournament-enter-action-hero" href="#official-schedule">Enter</a>
+          <a className="tournament-enter-action tournament-enter-action-hero" href="#tournament-entry">Enter</a>
         </div>
         <h1>{tournament.name}</h1>
         {tournament.description ? <p>{tournament.description}</p> : null}
@@ -149,6 +234,21 @@ function TournamentContent({ leaderboardError, leaderboardLoading, onLeaderboard
       </header>
 
       <div className="tournament-route-content">
+        <section className="tournament-route-section" id="tournament-entry" aria-busy={tournamentStatusLoading || entering}>
+          <div className="tournament-section-heading">
+            <div><Wallet size={18} /><span>Tournament entry</span></div>
+            <b>{entryLabel({ sessionAuth, tournament, tournamentStatus })}</b>
+          </div>
+          {tournamentStatusError ? <p className="tournament-leaderboard-error" role="alert">{tournamentStatusError}</p> : null}
+          <TournamentEntryPanel
+            entering={entering}
+            onEnterTournament={onEnterTournament}
+            sessionAuth={sessionAuth}
+            tournament={tournament}
+            status={tournamentStatus}
+          />
+        </section>
+
         <section className="tournament-route-section" id="official-schedule">
           <div className="tournament-section-heading">
             <div><CalendarDays size={18} /><span>Official schedule</span></div>
@@ -176,6 +276,37 @@ function TournamentContent({ leaderboardError, leaderboardLoading, onLeaderboard
         </section>
       </div>
     </>
+  );
+}
+
+function TournamentEntryPanel({ entering, onEnterTournament, sessionAuth, status, tournament }) {
+  const entered = hasTournamentEntry(status);
+  const blockedReason = status?.eligibility?.reason || status?.eligibility?.error || status?.myStatus?.error || "";
+
+  if (tournament.status === "ended") {
+    return <DataUnavailable label="This tournament is final and read-only." />;
+  }
+
+  if (!sessionAuth?.token) {
+    return (
+      <div className="tournament-entry-panel">
+        <strong>Connect on the main market page first.</strong>
+        <span>Tournament entry uses your session wallet token; no local placeholder entry is shown.</span>
+        <a className="tournament-enter-action" href="/">Connect wallet</a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tournament-entry-panel">
+      <strong>{entered ? "Entry confirmed by Bento" : "Ready to enter with Bento"}</strong>
+      <span>{entrySummary(status) || blockedReason || "Eligibility and entry state are read from the tournament host."}</span>
+      {!entered ? (
+        <button className="tournament-enter-action" disabled={entering || Boolean(blockedReason)} onClick={onEnterTournament} type="button">
+          {entering ? "Entering..." : `Enter ${tournament.stakeAsset || "credits"}`}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -292,6 +423,41 @@ function StatusIcon({ status }) {
 
 function DataUnavailable({ label }) {
   return <p className="tournament-data-unavailable">{label}</p>;
+}
+
+function readTournamentSession() {
+  if (typeof sessionStorage === "undefined") return { token: "", wallet: "" };
+  return {
+    token: sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY) || "",
+    wallet: sessionStorage.getItem(SESSION_WALLET_STORAGE_KEY) || "",
+  };
+}
+
+function hasTournamentEntry(status = {}) {
+  return Boolean(
+    status?.myStatus?.hasEntry
+    || status?.myStatus?.entered
+    || status?.myStatus?.entry
+    || status?.eligibility?.hasEntry
+    || status?.myPicks?.hasEntry
+    || status?.myPicks?.entry,
+  );
+}
+
+function entrySummary(status = {}) {
+  const chips = status?.myStatus?.chipsSummary || status?.myStatus?.chips || status?.myPicks?.chipsSummary;
+  if (chips?.chipsRemaining !== undefined) return `${chips.chipsRemaining} chips remaining`;
+  if (chips?.startChips !== undefined) return `${chips.startChips} starting chips`;
+  if (status?.eligibility?.eligible === false) return "Wallet is not eligible for entry";
+  if (status?.eligibility?.eligible === true) return "Wallet is eligible";
+  return "";
+}
+
+function entryLabel({ sessionAuth, tournament, tournamentStatus }) {
+  if (tournament?.status === "ended") return "Read-only";
+  if (!sessionAuth?.token) return "Connect";
+  if (hasTournamentEntry(tournamentStatus)) return "Entered";
+  return "Bento status";
 }
 
 function TournamentRouteSkeleton() {

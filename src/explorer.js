@@ -51,6 +51,35 @@ export async function fetchTournamentDetail(slug, pagination) {
   return payload?.tournament || null;
 }
 
+export async function fetchTournamentStatus(slug, { token, wallet } = {}) {
+  const params = new URLSearchParams({ slug });
+  if (wallet) params.set("wallet", wallet);
+  const response = await fetch(`/api/tournament-status?${params}`, {
+    headers: {
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error?.message || `Tournament status returned ${response.status}`);
+  return payload?.status || null;
+}
+
+export async function enterTournament({ token, ...body }) {
+  const response = await fetch("/api/tournament-enter", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error?.message || `Tournament enter returned ${response.status}`);
+  return payload?.entry || null;
+}
+
 async function requestExplorerItems() {
   const response = await fetch("/api/explorer", { headers: { Accept: "application/json" } });
   const payload = await response.json().catch(() => null);
