@@ -213,6 +213,10 @@ button:disabled {
 
 .brand-wordmark {
   display: inline-block;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #fffdf2;
   font-family: Bangers, Inter, sans-serif;
   font-size: 28px;
@@ -1269,6 +1273,39 @@ button:disabled {
   z-index: 1;
   gap: 10px;
   padding: 0 14px 16px;
+}
+
+.auto-pick-banner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  margin: 0 14px 16px;
+  padding: 12px 13px;
+  color: #050507;
+  background: linear-gradient(135deg, #fff8b8, #ffd447);
+  border: 3px solid #050507;
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 #050507;
+}
+
+.auto-pick-banner span {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.auto-pick-banner strong {
+  font-family: Bangers, Inter, sans-serif;
+  font-size: 24px;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+}
+
+.auto-pick-banner small {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .market-nav {
@@ -2800,7 +2837,8 @@ button:disabled {
 }
 
 .explorer-results {
-  min-height: 220px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
@@ -2826,6 +2864,16 @@ button:disabled {
   display: block;
   color: inherit;
   text-decoration: none;
+}
+
+button.explorer-card-link {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .explorer-card-link:focus-visible {
@@ -3000,8 +3048,55 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.explorer-card-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 0;
+  padding: 0 0 0 24px;
+  background: #f0ecdf;
+  border-top: 1px solid rgba(5, 5, 7, 0.3);
+}
+
+.explorer-card-actions .explorer-schedule-toggle {
+  padding-left: 0;
+  background: transparent;
+  border-top: 0;
+}
+
+.explorer-schedule-toggle-disabled {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: #7a715f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .explorer-schedule-toggle:hover {
   background: var(--yellow);
+}
+
+.explorer-enter-button {
+  min-height: 44px;
+  width: 100%;
+  align-self: stretch;
+  padding: 10px 14px;
+  color: #050507;
+  background: var(--cyan);
+  border: 0;
+  border-left: 1px solid rgba(5, 5, 7, 0.3);
+  border-radius: 0;
+  box-shadow: inset 0 0 0 2px rgba(5, 5, 7, 0.55);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.explorer-enter-button:hover {
+  filter: brightness(1.03);
 }
 
 .explorer-card-lockline {
@@ -3039,6 +3134,157 @@ button:disabled {
   border-top: 1px solid rgba(5, 5, 7, 0.28);
 }
 
+.explorer-selected-panel {
+  flex: 0 0 auto;
+  margin: 0 24px 24px;
+  padding: 18px 20px 20px;
+  background: linear-gradient(180deg, #fffdf5 0%, #f3f0e4 100%);
+  border: 2px solid rgba(5, 5, 7, 0.75);
+  border-radius: 18px;
+  box-shadow: 0 12px 0 rgba(5, 5, 7, 0.12);
+}
+
+.explorer-selected-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.explorer-selected-kicker {
+  display: inline-flex;
+  margin-bottom: 5px;
+  color: #6d6657;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.explorer-selected-panel h3 {
+  margin: 0;
+  font-family: var(--explorer-display);
+  font-size: clamp(22px, 2.8vw, 32px);
+  line-height: 0.98;
+  text-transform: uppercase;
+}
+
+.explorer-selected-close {
+  min-height: 36px;
+  padding: 0 12px;
+  color: #050507;
+  background: #ffd84d;
+  border: 2px solid #050507;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.explorer-selected-description {
+  margin: 0 0 14px;
+  color: #5d574a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.explorer-selected-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.explorer-selected-meta span,
+.explorer-selected-meta b {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: #fff7dd;
+  border: 1px solid rgba(5, 5, 7, 0.22);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.explorer-selected-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.explorer-schedule-selected {
+  margin-top: 0;
+  background: #eef8f7;
+  border: 2px solid rgba(5, 5, 7, 0.16);
+  border-radius: 14px;
+}
+
+.explorer-stage-list {
+  display: grid;
+  gap: 10px;
+}
+
+.explorer-stage {
+  padding: 10px;
+  background: rgba(255, 253, 242, 0.9);
+  border: 2px solid #050507;
+  border-radius: 8px;
+}
+
+.explorer-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.explorer-stage-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.explorer-stage-head small {
+  color: #6b6559;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.explorer-fixture-list {
+  display: grid;
+  gap: 8px;
+}
+
+.explorer-fixture {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  background: #fffdf8;
+  border: 1px solid rgba(5, 5, 7, 0.2);
+  border-radius: 8px;
+}
+
+.explorer-fixture strong,
+.explorer-fixture span,
+.explorer-fixture time {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .explorer-readonly {
   width: fit-content;
   display: inline-flex;
@@ -3052,6 +3298,14 @@ button:disabled {
   font-size: 9px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.explorer-detail-empty {
+  display: block;
+  padding: 10px 2px 2px;
+  color: #5c5762;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .explorer-detail-grid {
@@ -3081,6 +3335,78 @@ button:disabled {
   font-weight: 900;
   line-height: 1.3;
   text-overflow: ellipsis;
+}
+
+.explorer-round-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.explorer-round {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  background: rgba(255, 253, 242, 0.9);
+  border: 2px solid #050507;
+  border-radius: 5px;
+}
+
+.explorer-round-number {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #050507;
+  background: var(--yellow);
+  border: 2px solid #050507;
+  border-radius: 999px;
+  font-family: var(--explorer-display);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.explorer-round-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.explorer-round-copy h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.explorer-round-copy p {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: #4f4a56;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.explorer-round-dates {
+  display: grid;
+  gap: 6px;
+  min-width: 128px;
+  justify-items: end;
+}
+
+.explorer-round-dates span {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.explorer-round-dates time {
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .explorer-state {
@@ -3228,6 +3554,12 @@ button:disabled {
   border-bottom: 2px solid #050507;
 }
 
+.tournament-route-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .tournament-route-nav a,
 .tournament-route-nav button {
   min-height: 40px;
@@ -3250,6 +3582,28 @@ button:disabled {
   box-shadow: 0 2px 0 #050507;
 }
 
+.tournament-enter-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  color: #050507;
+  background: var(--cyan);
+  border: 1.5px solid #050507;
+  border-radius: 999px;
+  box-shadow: 0 2px 0 #050507;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.tournament-enter-action:hover {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #050507;
+}
+
 .tournament-route-hero {
   position: relative;
   overflow: hidden;
@@ -3259,6 +3613,19 @@ button:disabled {
     radial-gradient(circle at 86% 22%, rgba(56, 189, 248, 0.24), transparent 25%),
     linear-gradient(125deg, #07160e, #125331);
   border-bottom: 3px solid #050507;
+}
+
+.tournament-route-hero-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tournament-enter-action-hero {
+  flex: 0 0 auto;
 }
 
 .tournament-route-hero::after {
@@ -4144,6 +4511,7 @@ button:disabled {
   }
 
   .brand-wordmark {
+    max-width: 150px;
     font-size: 22px;
   }
 

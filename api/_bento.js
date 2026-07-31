@@ -1,4 +1,4 @@
-import { createBentoSdk, walletAuthProvider } from "@bento.fun/sdk";
+import { createBentoSdk, jwtAuthProvider, walletAuthProvider } from "@bento.fun/sdk";
 import { buildExplorerCatalog, normalizeExplorerTournament, resolveTournamentSlug } from "./_explorer.js";
 import { normalizeTournamentDetail } from "./_tournament.js";
 
@@ -269,6 +269,7 @@ function createUserBentoSdk(token) {
     apiKey: config.apiKey,
     tournamentsBaseUrl: config.tournamentsBaseUrl || undefined,
     auth: walletAuthProvider(() => ({ Authorization: `Bearer ${token}` })),
+    tournamentsAuth: jwtAuthProvider({ getAccessToken: () => token }),
   });
 }
 
@@ -284,6 +285,8 @@ export function normalizeBentoMarket(item = {}) {
   const duelId = item.duelId ?? item.duel_id ?? item.marketId ?? item.id;
   const optionA = item.optionA ?? item.option_a ?? item.options?.[0] ?? item.outcomes?.[0] ?? {};
   const optionB = item.optionB ?? item.option_b ?? item.options?.[1] ?? item.outcomes?.[1] ?? {};
+  const score = item.score ?? item.scores ?? item.result?.score ?? item.result?.scores ?? item.raw?.score ?? item.raw?.scores ?? {};
+  const winner = item.winner ?? item.result?.winner ?? item.outcome ?? item.result?.outcome ?? "";
   const title =
     item.title ??
     item.question ??
@@ -301,6 +304,9 @@ export function normalizeBentoMarket(item = {}) {
     status: item.status ?? item.state ?? item.marketStatus ?? "listed",
     optionA: labelFrom(optionA, "YES"),
     optionB: labelFrom(optionB, "NO"),
+    winner: winnerFrom(winner, optionA, optionB),
+    homeScore: numberOrNull(score.home ?? score.a ?? score.optionA ?? item.homeScore ?? item.home_score),
+    awayScore: numberOrNull(score.away ?? score.b ?? score.optionB ?? item.awayScore ?? item.away_score),
     liquidity: item.liquidity ?? item.pool ?? item.totalLiquidity ?? item.volume,
     endTime: item.endTime ?? item.endsAt ?? item.expiry ?? item.closeTime,
     raw: item,
@@ -325,6 +331,21 @@ function listFrom(value) {
 function numberOr(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function numberOrNull(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function winnerFrom(winner, optionA, optionB) {
+  if (typeof winner === "number") return winner === 0 ? labelFrom(optionA, "YES") : labelFrom(optionB, "NO");
+  if (typeof winner === "string") return winner.trim();
+  if (winner && typeof winner === "object") {
+    return winner.name || winner.label || winner.title || winner.option || "";
+  }
+  return "";
 }
 
 function hasValue(value) {

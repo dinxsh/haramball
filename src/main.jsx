@@ -37,7 +37,6 @@ import {
   initialBentoReadiness,
   isBentoMarketEnded,
   loginBentoWallet,
-  marketIndexFromDuelId,
   normalizeExternalLogin,
   normalizeBentoLogin,
   placeBentoBet,
@@ -56,7 +55,7 @@ const PROFILE_STORAGE_KEY = "haramball-world-cup-profiles";
 const ACTIVE_PROFILE_STORAGE_KEY = "haramball-active-profile-id";
 const ACTIVITY_STORAGE_KEY = "haramball-activity-feed";
 const THEME_STORAGE_KEY = "haramball-theme";
-const ROUND_SECONDS = 5;
+const ROUND_SECONDS = 15;
 const LOCKOUT_SECONDS = Math.ceil(ROUND_SECONDS * 0.15);
 const TOKEN_OPTIONS = [
   { symbol: "USDC", name: "USD Coin", network: "Base", icon: "$" },
@@ -109,6 +108,8 @@ function MarketApp() {
   const [toast, setToast] = useState("");
   const [feed, setFeed] = useState(loadActivityFeed);
   const [elapsedSeconds, setElapsedSeconds] = useState(() => Math.floor(Date.now() / 1000) % ROUND_SECONDS);
+  const [roundKey, setRoundKey] = useState(() => Math.floor(Date.now() / 1000 / ROUND_SECONDS));
+  const [autoPick, setAutoPick] = useState(null);
   const [settlement, setSettlement] = useState({
     tone: "idle",
     icon: "?",
@@ -119,12 +120,13 @@ function MarketApp() {
   });
   const reconcileTimer = useRef(null);
   const explorerButtonRef = useRef(null);
+  const estimateRequestRef = useRef(0);
 
   const market = markets[marketIndex] || null;
   const marketEnded = isBentoMarketEnded(market);
   const amountWei = useMemo(() => humanToWei(stake), [stake]);
   const authed = Boolean(token && authMode === "wallet");
-  const optionLabel = pick === 0 ? market?.optionA : pick === 1 ? market?.optionB : "";
+  const optionLabel = pick === 0 ? market?.optionA : pick === 1 ? market?.optionB : autoPick?.label || "";
   const secondsRemaining = Math.max(0, ROUND_SECONDS - elapsedSeconds);
   const lockoutActive = secondsRemaining <= LOCKOUT_SECONDS;
   const progressPercent = Math.min(100, Math.max(0, (elapsedSeconds / ROUND_SECONDS) * 100));
@@ -166,6 +168,7 @@ function MarketApp() {
     setExplorerOpen(false);
     window.requestAnimationFrame(() => explorerButtonRef.current?.focus());
   };
+  const openLiveExplore = () => setExplorerOpen(true);
 
   useEffect(() => {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
@@ -179,9 +182,83 @@ function MarketApp() {
     const timer = window.setInterval(() => {
       const nowSeconds = Math.floor(Date.now() / 1000);
       setElapsedSeconds(nowSeconds % ROUND_SECONDS);
+      setRoundKey(Math.floor(nowSeconds / ROUND_SECONDS));
     }, 250);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!market || marketEnded) {
+      setAutoPick(null);
+      return;
+    }
+
+    const nextPick = chooseRandomPick(market);
+    setAutoPick(nextPick);
+    setPick(nextPick.index);
+    setEstimate(null);
+    setSettlement({
+      tone: nextPick.index === 0 ? "yes" : "no",
+      icon: nextPick.index === 0 ? "Y" : "N",
+      title: `${nextPick.label} auto-selected`,
+      body: `Randomly assigned for this 15-second round. Preview updates automatically.`,
+      payout: "Ready",
+      receipt: null,
+    });
+  }, [market?.duelId, marketEnded, roundKey]);
+
+  useEffect(() => {
+    if (!market || marketEnded || !autoPick) return undefined;
+
+    setEstimate(null);
+    if (!authed || Number(stake) <= 0 || lockoutActive) return undefined;
+
+    const requestId = estimateRequestRef.current + 1;
+    estimateRequestRef.current = requestId;
+    let active = true;
+
+    setEstimateLoading(true);
+    estimateBentoBet({
+      token,
+      duelId: market.duelId,
+      optionIndex: autoPick.index,
+      amountWei,
+      slippageBps: 100,
+    })
+      .then((payload) => {
+        if (!active || requestId !== estimateRequestRef.current) return;
+        const nextEstimate = extractEstimate(payload);
+        setEstimate(nextEstimate);
+        setSettlement({
+          tone: autoPick.index === 0 ? "yes" : "no",
+          icon: autoPick.index === 0 ? "Y" : "N",
+          title: `${autoPick.label} preview ready`,
+          body: nextEstimate.sharesOut
+            ? `${formatMoney(stake)} ${stakeCurrency} for estimated ${weiToHuman(nextEstimate.sharesOut)} shares.`
+            : `${formatMoney(stake)} ${stakeCurrency} ticket preview is ready.`,
+          payout: "Preview",
+          receipt: null,
+        });
+      })
+      .catch((error) => {
+        if (!active || requestId !== estimateRequestRef.current) return;
+        setSettlement({
+          tone: autoPick.index === 0 ? "yes" : "no",
+          icon: autoPick.index === 0 ? "Y" : "N",
+          title: `${autoPick.label} quote unavailable`,
+          body: error.message || "Bento could not preview this random ticket.",
+          payout: "Retry",
+          receipt: null,
+        });
+      })
+      .finally(() => {
+        if (active && requestId === estimateRequestRef.current) setEstimateLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [amountWei, authed, autoPick, lockoutActive, market, marketEnded, stake, stakeCurrency, token]);
 
   useEffect(() => {
     let alive = true;
@@ -222,7 +299,7 @@ function MarketApp() {
   useEffect(() => {
     let alive = true;
     fetchBentoReadiness().then((next) => {
-      if (alive) setReadiness(next);
+      if (alive) setReadiness(next || initialBentoReadiness);
     });
     return () => {
       alive = false;
@@ -261,6 +338,13 @@ function MarketApp() {
   }, [readiness.configured]);
 
   useEffect(() => {
+    if (!markets.length) return;
+    setMarketIndex((currentIndex) => Math.min(currentIndex, markets.length - 1));
+  }, [markets]);
+
+  useEffect(() => {
+    if (market && !marketEnded) return;
+
     setPick(null);
     setEstimate(null);
     setSettlement(marketEnded
@@ -708,7 +792,7 @@ function MarketApp() {
               ) : market ? (
                 <>
                   <Team name={fixture.home} />
-                  <div className="score">v/s</div>
+                  <div className="score">vs</div>
                   <Team name={fixture.away} align="right" />
                 </>
               ) : (
@@ -717,22 +801,11 @@ function MarketApp() {
             </div>
             {market ? (
               <div className="market-context" aria-label="Market context">
-                <label className="fixture-picker">
-                  <span>Switch tournament</span>
-                  <select
-                    aria-label="Switch tournament"
-                    disabled={markets.length < 2}
-                    onChange={(event) => setMarketIndex(marketIndexFromDuelId(markets, event.target.value))}
-                    value={market.duelId}
-                  >
-                    {markets.map((item) => (
-                      <option key={item.duelId} value={item.duelId}>
-                        {item.title || item.duelId}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <b>{[leagueName, marketEnded ? "Ended" : "Live"].filter(Boolean).join(" - ")}</b>
+                <div className="fixture-picker">
+                  <span>Random bet</span>
+                  <b title={market.title || market.duelId}>{market.title && market.title !== fixture.label ? market.title : fixture.label}</b>
+                </div>
+                <b>{[leagueName, marketEnded ? "Ended" : "15s round"].filter(Boolean).join(" - ")}</b>
               </div>
             ) : null}
 
@@ -755,7 +828,7 @@ function MarketApp() {
               {marketsLoading ? <MarketQuestionSkeleton /> : (
                 <div className="question-block">
                   <h1>{marketTitle}</h1>
-                  <p>{marketEnded ? "This tournament has ended. The market is shown for reference only." : marketBody}</p>
+                  <p>{marketEnded ? "This market has ended. Open Explore to jump to live matches." : "One random side is chosen for a strict 15-second window."}</p>
                 </div>
               )}
 
@@ -799,21 +872,16 @@ function MarketApp() {
                 </div>
               </div>
 
-              <div className="decision-row">
-                <button className="decision yes" disabled={!market || estimateLoading || placing || lockoutActive} onClick={() => quotePick(0)} type="button">
-                  <Check size={22} />
-                  {marketsLoading ? <SkeletonLine width="58px" /> : market?.optionA || "YES"}
-                </button>
-                <button className="decision no" disabled={!market || estimateLoading || placing || lockoutActive} onClick={() => quotePick(1)} type="button">
-                  <X size={22} />
-                  {marketsLoading ? <SkeletonLine width="52px" /> : market?.optionB || "NO"}
-                </button>
+              <div className="auto-pick-banner" role="status" aria-live="polite">
+                <span>Auto bet</span>
+                <strong>{autoPick ? autoPick.label : "Waiting for next random pick"}</strong>
+                <small>{marketEnded ? "Tournament ended" : "One random side is locked every 15 seconds"}</small>
               </div>
 
               <div className="market-nav">
                 <button className="activate-button" disabled={!estimate || placing || lockoutActive} onClick={submitBet} type="button">
                   <Lock size={17} />
-                  {placing ? <SkeletonLine width="104px" /> : "Lock Ticket"}
+                  {placing ? <SkeletonLine width="104px" /> : "Lock Random Ticket"}
                 </button>
               </div>
                 </>
@@ -822,8 +890,9 @@ function MarketApp() {
                   <Lock size={20} />
                   <div>
                     <strong>Read-only result</strong>
-                    <span>No bets, previews, cached activity, or mock tournament data are shown.</span>
+                    <span>{market?.winner ? `Winner: ${market.winner}` : "No bets, previews, cached activity, or mock tournament data are shown."}</span>
                   </div>
+                  <button className="chip" onClick={openLiveExplore} type="button">Open Explore</button>
                 </div>
               )}
             </article>
@@ -853,7 +922,8 @@ function MarketApp() {
           <section className="intro-panel ended-desktop-panel">
             <div className="eyebrow"><Lock size={16} /> Final</div>
             <h2>This tournament has ended.</h2>
-            <p>The live controls and locally cached activity are hidden. Only current API market details remain visible.</p>
+            <p>The betting card is hidden. Open Explore to browse live matches and archived results.</p>
+            <button className="activate-button" onClick={openLiveExplore} type="button">Open Explore</button>
           </section>
         ) : (
           <>
@@ -929,7 +999,7 @@ function MarketApp() {
         />
       ) : null}
 
-      <ExplorerModal onClose={closeExplorer} open={explorerOpen} />
+      <ExplorerModal initialStatus="live" onClose={closeExplorer} onSelectTournament={() => {}} open={explorerOpen} />
 
       <div className={toast ? "toast show" : "toast"}>{toast}</div>
     </main>
@@ -1226,6 +1296,16 @@ function Team({ flag, name, sublabel, stat, align = "left" }) {
       {sublabel ? <span>{sublabel} <b>{stat}</b></span> : null}
     </div>
   );
+}
+
+function chooseRandomPick(market) {
+  const options = [market?.optionA, market?.optionB].filter(Boolean);
+  const fallbackLabel = options[0] || "Random side";
+  const index = Math.random() < 0.5 ? 0 : 1;
+  return {
+    index: options.length > 1 ? index : 0,
+    label: options[index] || fallbackLabel,
+  };
 }
 
 function SettlementCard({ estimate, estimateLoading, market, pick, placing, settlement, stake, stakeCurrency }) {

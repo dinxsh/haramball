@@ -49,6 +49,8 @@ test("normalizes Bento market list rows around duelId and option labels", () => 
       question: "Will Bento grow this week?",
       category: "Growth",
       options: [{ label: "YES" }, { label: "NO" }],
+      score: { home: 3, away: 1 },
+      winner: "YES",
       totalLiquidity: "1000000000000000000",
     }),
     {
@@ -59,6 +61,9 @@ test("normalizes Bento market list rows around duelId and option labels", () => 
       status: "listed",
       optionA: "YES",
       optionB: "NO",
+      winner: "YES",
+      homeScore: 3,
+      awayScore: 1,
       liquidity: "1000000000000000000",
       endTime: undefined,
       raw: {
@@ -67,6 +72,8 @@ test("normalizes Bento market list rows around duelId and option labels", () => 
         question: "Will Bento grow this week?",
         category: "Growth",
         options: [{ label: "YES" }, { label: "NO" }],
+        score: { home: 3, away: 1 },
+        winner: "YES",
         totalLiquidity: "1000000000000000000",
       },
     },

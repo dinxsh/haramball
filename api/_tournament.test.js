@@ -28,6 +28,8 @@ test("normalizes football stages, fixtures, and tournament leaderboard", () => {
           teamBName: "Morocco",
           startTime: "2026-07-27T12:00:00.000Z",
           lockTime: "2026-07-27T11:45:00.000Z",
+          winner: "Japan",
+          score: { home: 2, away: 1 },
         }],
       }],
     },
@@ -37,6 +39,9 @@ test("normalizes football stages, fixtures, and tournament leaderboard", () => {
   assert.equal(result.description, "International knockout competition");
   assert.equal(result.stages[0].name, "Semi Final");
   assert.deepEqual(result.stages[0].fixtures[0].teams, ["Japan", "Morocco"]);
+  assert.equal(result.stages[0].fixtures[0].winner, "Japan");
+  assert.equal(result.stages[0].fixtures[0].homeScore, 2);
+  assert.equal(result.stages[0].fixtures[0].awayScore, 1);
   assert.equal(result.leaderboard[0].name, "dinesh");
   assert.equal(result.leaderboard[0].score, 18);
   assert.equal("rounds" in result, false);

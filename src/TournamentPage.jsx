@@ -4,22 +4,32 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Compass,
   Flag,
   Gauge,
   Lock,
   MapPin,
   Trophy,
   Users,
+  X,
 } from "lucide-react";
-import ExplorerModal from "./ExplorerModal.jsx";
 import { fetchTournamentDetail, formatExplorerDate, formatExplorerPrize } from "./explorer.js";
 
 export default function TournamentPage({ slug }) {
+  return <TournamentRoute slug={slug} />;
+}
+
+export function TournamentDialog({ onClose, open, slug }) {
+  return open ? (
+    <div className="tournament-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()} role="presentation">
+      <TournamentRoute slug={slug} onClose={onClose} dialog />
+    </div>
+  ) : null;
+}
+
+function TournamentRoute({ slug, onClose, dialog = false }) {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [explorerOpen, setExplorerOpen] = useState(false);
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState("");
@@ -53,12 +63,40 @@ export default function TournamentPage({ slug }) {
     return () => { active = false; };
   }, [slug, leaderboardPage]);
 
-  return (
+  return dialog ? (
+    <section className="tournament-route-shell tournament-route-shell-dialog" aria-busy={loading}>
+      <div className="tournament-route-panel tournament-route-panel-dialog">
+        <nav className="tournament-route-nav" aria-label="Tournament navigation">
+          <a href="/"><ArrowLeft size={17} /> haramball.xyz</a>
+          <div className="tournament-route-nav-actions">
+            <a className="tournament-enter-action" href="#official-schedule">Enter</a>
+            <button onClick={onClose} type="button"><X size={17} /> Close</button>
+          </div>
+        </nav>
+        {loading ? <TournamentRouteSkeleton /> : null}
+        {!loading && error ? (
+          <div className="tournament-route-state" role="alert">
+            <strong>Tournament unavailable</strong>
+            <p>{error}</p>
+            <button onClick={onClose} type="button">Close dialog</button>
+          </div>
+        ) : null}
+        {!loading && tournament ? (
+          <TournamentContent
+            leaderboardError={leaderboardError}
+            leaderboardLoading={leaderboardLoading}
+            onLeaderboardPageChange={setLeaderboardPage}
+            tournament={tournament}
+          />
+        ) : null}
+      </div>
+    </section>
+  ) : (
     <main className="tournament-route-shell">
       <section className="tournament-route-panel" aria-busy={loading}>
         <nav className="tournament-route-nav" aria-label="Tournament navigation">
           <a href="/"><ArrowLeft size={17} /> haramball.xyz</a>
-          <button onClick={() => setExplorerOpen(true)} type="button"><Compass size={17} /> Switch tournament</button>
+          <a href="/"><ArrowLeft size={17} /> Switch tournament</a>
         </nav>
 
         {loading ? <TournamentRouteSkeleton /> : null}
@@ -66,7 +104,7 @@ export default function TournamentPage({ slug }) {
           <div className="tournament-route-state" role="alert">
             <strong>Tournament unavailable</strong>
             <p>{error}</p>
-            <button onClick={() => setExplorerOpen(true)} type="button">Choose another tournament</button>
+            <a href="/">Choose another tournament</a>
           </div>
         ) : null}
         {!loading && tournament ? (
@@ -78,7 +116,6 @@ export default function TournamentPage({ slug }) {
           />
         ) : null}
       </section>
-      <ExplorerModal onClose={() => setExplorerOpen(false)} open={explorerOpen} />
     </main>
   );
 }
@@ -90,10 +127,13 @@ function TournamentContent({ leaderboardError, leaderboardLoading, onLeaderboard
   return (
     <>
       <header className={`tournament-route-hero ${tournament.status}`}>
-        <div className="tournament-route-eyebrow">
-          <span>{tournament.kind === "f1" ? <Flag size={14} /> : <Trophy size={14} />}{tournament.sport}</span>
-          {tournament.league ? <span>{tournament.league}</span> : null}
-          <b><StatusIcon status={tournament.status} />{tournament.status}</b>
+        <div className="tournament-route-hero-top">
+          <div className="tournament-route-eyebrow">
+            <span>{tournament.kind === "f1" ? <Flag size={14} /> : <Trophy size={14} />}{tournament.sport}</span>
+            {tournament.league ? <span>{tournament.league}</span> : null}
+            <b><StatusIcon status={tournament.status} />{tournament.status}</b>
+          </div>
+          <a className="tournament-enter-action tournament-enter-action-hero" href="#official-schedule">Enter</a>
         </div>
         <h1>{tournament.name}</h1>
         {tournament.description ? <p>{tournament.description}</p> : null}
@@ -102,12 +142,14 @@ function TournamentContent({ leaderboardError, leaderboardLoading, onLeaderboard
           {tournament.entryCount > 0 ? <Meta label="Entries" value={String(tournament.entryCount)} /> : null}
           {prize ? <Meta label="Prize pool" value={prize} /> : null}
           {tournament.startTime ? <Meta label={isEnded ? "Final event" : "Next event"} value={formatExplorerDate(tournament.startTime)} /> : null}
+          {isEnded && tournament.winner ? <Meta label="Winner" value={tournament.winner} /> : null}
+          {isEnded && (tournament.homeScore !== null || tournament.awayScore !== null) ? <Meta label="Score" value={scoreLine(tournament)} /> : null}
         </div>
         {isEnded ? <div className="tournament-route-readonly"><Lock size={15} /> Final tournament data - read only</div> : null}
       </header>
 
       <div className="tournament-route-content">
-        <section className="tournament-route-section">
+        <section className="tournament-route-section" id="official-schedule">
           <div className="tournament-section-heading">
             <div><CalendarDays size={18} /><span>Official schedule</span></div>
             <b>Live Bento data</b>
@@ -157,6 +199,12 @@ function FootballStages({ stages }) {
                     {fixture.title ? <strong>{fixture.title}</strong> : null}
                     {fixture.teams.length ? <span>{fixture.teams.join(" vs ")}</span> : null}
                   </div>
+                  {fixture.winner || fixture.homeScore !== null || fixture.awayScore !== null ? (
+                    <div className="tournament-fixture-score">
+                      {fixture.winner ? <strong>{fixture.winner}</strong> : null}
+                      {fixture.homeScore !== null || fixture.awayScore !== null ? <span>{scoreLine(fixture)}</span> : null}
+                    </div>
+                  ) : null}
                   {fixture.startTime ? <time dateTime={fixture.startTime}>{formatExplorerDate(fixture.startTime)}</time> : null}
                 </div>
               ))}
@@ -259,4 +307,12 @@ function TournamentRouteSkeleton() {
 
 function humanize(value) {
   return String(value || "").replaceAll("_", " ").toLowerCase();
+}
+
+function scoreLine(match = {}) {
+  const home = match.homeScore ?? null;
+  const away = match.awayScore ?? null;
+  if (home === null && away === null) return "";
+  const teams = Array.isArray(match.teams) && match.teams.length === 2 ? match.teams : ["Home", "Away"];
+  return `${teams[0]} ${home ?? "-"} - ${away ?? "-"} ${teams[1]}`;
 }

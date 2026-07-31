@@ -54,6 +54,8 @@ function normalizeStage(stage = {}) {
 
 function normalizeFixture(fixture = {}, stage = {}) {
   const teams = [fixture.teamAName, fixture.teamBName].filter(Boolean).map(String);
+  const score = fixture.score ?? fixture.scores ?? fixture.result?.score ?? fixture.result?.scores ?? {};
+  const winner = fixture.winner ?? fixture.result?.winner ?? fixture.outcome ?? fixture.result?.outcome ?? "";
   return {
     id: text(fixture.id),
     title: text(fixture.title || fixture.name || (teams.length === 2 ? teams.join(" vs ") : "")),
@@ -62,6 +64,9 @@ function normalizeFixture(fixture = {}, stage = {}) {
     startTime: isoTime(fixture.startTime || stage.startTime),
     lockTime: isoTime(fixture.lockTime || stage.lockTime),
     endTime: isoTime(fixture.endTime || fixture.expiryTime || stage.endTime),
+    homeScore: numberOrNull(score.home ?? score.a ?? score.teamA ?? fixture.homeScore ?? fixture.home_score),
+    awayScore: numberOrNull(score.away ?? score.b ?? score.teamB ?? fixture.awayScore ?? fixture.away_score),
+    winner: winnerFrom(winner, teams),
   };
 }
 
@@ -132,4 +137,13 @@ function isoTime(value) {
 
 function valueOrNull(value) {
   return value === undefined || value === null || value === "" ? null : String(value);
+}
+
+function winnerFrom(winner, teams = []) {
+  if (typeof winner === "number") return teams[winner] || "";
+  if (typeof winner === "string") return winner.trim();
+  if (winner && typeof winner === "object") {
+    return winner.name || winner.label || winner.title || winner.team || winner.option || "";
+  }
+  return "";
 }

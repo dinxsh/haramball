@@ -14,6 +14,7 @@ import {
 import {
   explorerSports,
   fetchExplorerItems,
+  fetchTournamentDetail,
   filterExplorerItems,
   formatExplorerDate,
   formatExplorerPrize,
@@ -22,15 +23,22 @@ import {
 
 const STATUS_FILTERS = ["All", "live", "upcoming", "ended"];
 
-export default function ExplorerModal({ onClose, open }) {
+export default function ExplorerModal({ initialStatus = "All", onClose, onSelectTournament, open }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sport, setSport] = useState("All");
-  const [status, setStatus] = useState("All");
+  const [status, setStatus] = useState(initialStatus);
   const [expandedId, setExpandedId] = useState("");
+  const [expandedTournament, setExpandedTournament] = useState(null);
+  const [expandedTournamentLoading, setExpandedTournamentLoading] = useState(false);
+  const [expandedTournamentError, setExpandedTournamentError] = useState("");
+  const [selectedSlug, setSelectedSlug] = useState("");
+  const [selectedTournament, setSelectedTournament] = useState(null);
+  const [selectedTournamentLoading, setSelectedTournamentLoading] = useState(false);
+  const [selectedTournamentError, setSelectedTournamentError] = useState("");
   const dialogRef = useRef(null);
   const searchRef = useRef(null);
   const requestIdRef = useRef(0);
@@ -53,6 +61,9 @@ export default function ExplorerModal({ onClose, open }) {
       setItems(nextItems);
       setLoaded(true);
       setExpandedId("");
+      if (selectedSlug && !nextItems.some((item) => item.slug === selectedSlug)) {
+        setSelectedSlug("");
+      }
     } catch (loadError) {
       if (requestId !== requestIdRef.current) return;
       setItems([]);
@@ -76,6 +87,80 @@ export default function ExplorerModal({ onClose, open }) {
   useEffect(() => {
     if (open && !loaded && !loading && !error) load();
   }, [open, loaded, loading, error]);
+
+  useEffect(() => {
+    if (open) setStatus(initialStatus);
+  }, [initialStatus, open]);
+
+  useEffect(() => {
+    if (!expandedId) {
+      setExpandedTournament(null);
+      setExpandedTournamentLoading(false);
+      setExpandedTournamentError("");
+      return;
+    }
+
+    const item = items.find((candidate) => candidate.id === expandedId);
+    if (!item || item.kind !== "f1") {
+      setExpandedTournament(null);
+      setExpandedTournamentLoading(false);
+      setExpandedTournamentError("");
+      return;
+    }
+
+    let active = true;
+    setExpandedTournamentLoading(true);
+    setExpandedTournamentError("");
+
+    fetchTournamentDetail(item.slug)
+      .then((tournament) => {
+        if (!active) return;
+        setExpandedTournament(tournament);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        setExpandedTournament(null);
+        setExpandedTournamentError(loadError.message || "Bracket details unavailable");
+      })
+      .finally(() => {
+        if (active) setExpandedTournamentLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [expandedId, items]);
+
+  useEffect(() => {
+    if (!selectedSlug) {
+      setSelectedTournament(null);
+      setSelectedTournamentLoading(false);
+      setSelectedTournamentError("");
+      return;
+    }
+
+    let active = true;
+    setSelectedTournamentLoading(true);
+    setSelectedTournamentError("");
+
+    fetchTournamentDetail(selectedSlug)
+      .then((tournament) => {
+        if (!active) return;
+        setSelectedTournament(tournament);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        setSelectedTournament(null);
+        setSelectedTournamentError(loadError.message || "Schedule details unavailable");
+      })
+      .finally(() => {
+        if (active) setSelectedTournamentLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedSlug]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -208,18 +293,56 @@ export default function ExplorerModal({ onClose, open }) {
           {!error ? visibleItems.map((item) => (
             <ExplorerCard
               expanded={expandedId === item.id}
+              expandedTournament={expandedTournament}
+              expandedTournamentError={expandedTournamentError}
+              expandedTournamentLoading={expandedTournamentLoading}
               item={item}
               key={item.id}
-              onToggle={() => setExpandedId((current) => current === item.id ? "" : item.id)}
+              onSelectTournament={(slug) => {
+                setSelectedSlug(slug);
+                setExpandedId(item.id);
+                onSelectTournament?.(slug);
+              }}
+              onToggle={() => {
+                setExpandedId((current) => current === item.id ? "" : item.id);
+                setSelectedSlug(item.slug);
+              }}
             />
           )) : null}
         </div>
+
+        {selectedSlug ? (
+          <div className="explorer-selected-panel" aria-live="polite">
+            <div className="explorer-selected-panel-head">
+              <div>
+                <span className="explorer-selected-kicker">Selected competition</span>
+                <h3>{selectedTournament?.name || "Loading competition..."}</h3>
+              </div>
+              <button className="explorer-selected-close" onClick={() => setSelectedSlug("")} type="button">
+                Close
+              </button>
+            </div>
+            {selectedTournamentLoading ? <span className="explorer-detail-empty">Loading schedule and timings...</span> : null}
+            {selectedTournamentError ? <span className="explorer-detail-empty">{selectedTournamentError}</span> : null}
+            {!selectedTournamentLoading && !selectedTournamentError && selectedTournament ? (
+              <SelectedTournamentDetails tournament={selectedTournament} />
+            ) : null}
+          </div>
+        ) : null}
       </section>
     </div>
   );
 }
 
-function ExplorerCard({ expanded, item, onToggle }) {
+function ExplorerCard({
+  expanded,
+  expandedTournament,
+  expandedTournamentError,
+  expandedTournamentLoading,
+  item,
+  onSelectTournament,
+  onToggle,
+}) {
   const prize = formatExplorerPrize(item.prizePool, item.stakeAsset);
   const dateLabel = formatExplorerDate(item.startTime);
   const isF1 = item.kind === "f1";
@@ -231,7 +354,7 @@ function ExplorerCard({ expanded, item, onToggle }) {
   return (
     <article className={`explorer-card ${item.status} ${showSchedule ? "expanded" : ""}`}>
       <div className="explorer-card-stripe" aria-hidden="true" />
-      <a className="explorer-card-link" href={`/tournaments/${item.slug}`}>
+      <button className="explorer-card-link" onClick={() => onSelectTournament?.(item.slug)} type="button">
         <div className="explorer-card-main">
           <div className="explorer-card-copy">
             <div className="explorer-card-meta">
@@ -261,22 +384,96 @@ function ExplorerCard({ expanded, item, onToggle }) {
           </div>
         ) : null}
 
-        {isEnded ? <div className="explorer-card-lockline"><Lock size={13} /> Archived schedule <span>Open tournament</span></div> : null}
-      </a>
+              {isEnded ? <div className="explorer-card-lockline"><Lock size={13} /> Archived schedule <span>View live matches in Explore</span></div> : null}
+      </button>
 
-      {!isEnded ? (
-        <button className="explorer-schedule-toggle" aria-expanded={expanded} onClick={onToggle} type="button">
-          View schedule
-          <ChevronDown className={expanded ? "rotated" : ""} size={17} />
+        <div className="explorer-card-actions">
+        {!isEnded ? (
+          <button className="explorer-schedule-toggle" aria-expanded={expanded} onClick={onToggle} type="button">
+            {expanded ? "Hide schedule" : "View schedule"}
+            <ChevronDown className={expanded ? "rotated" : ""} size={17} />
+          </button>
+        ) : <span className="explorer-schedule-toggle explorer-schedule-toggle-disabled">Archived</span>}
+        <button className="explorer-enter-button" onClick={() => onSelectTournament?.(item.slug)} type="button">
+          Enter
         </button>
-      ) : null}
+      </div>
 
       {showSchedule ? (
         <div className="explorer-schedule">
-          {isF1 ? <F1Schedule event={item.nextEvent} /> : <TournamentSchedule event={item.nextEvent} />}
+          {isF1 ? (
+            <>
+              <div className="explorer-readonly">
+                <Gauge size={12} />
+                Bracket preview
+              </div>
+              {expandedTournamentLoading ? <span className="explorer-detail-empty">Loading round bracket...</span> : null}
+              {expandedTournamentError ? <span className="explorer-detail-empty">{expandedTournamentError}</span> : null}
+              {expandedTournament?.rounds?.length ? <F1Rounds rounds={expandedTournament.rounds} /> : null}
+              {!expandedTournamentLoading && !expandedTournamentError && !expandedTournament?.rounds?.length ? <F1Schedule event={item.nextEvent} /> : null}
+            </>
+          ) : (
+            <TournamentSchedule event={item.nextEvent} />
+          )}
         </div>
       ) : null}
     </article>
+  );
+}
+
+function SelectedTournamentDetails({ tournament }) {
+  return (
+    <div className="explorer-selected-details">
+      <div className="explorer-selected-meta">
+        <span>{tournament.kind === "f1" ? <Flag size={13} /> : <Trophy size={13} />}{tournament.sport}</span>
+        {tournament.league ? <span>{tournament.league}</span> : null}
+        {tournament.status ? <b className={`explorer-status ${tournament.status}`}>{tournament.status}</b> : null}
+      </div>
+      <p className="explorer-selected-description">{tournament.description || "Schedule and timings loaded from the competition slug page."}</p>
+      <div className="explorer-selected-actions">
+        <button className="explorer-enter-button" onClick={() => window.location.assign(`/tournaments/${tournament.slug}`)} type="button">
+          Enter
+        </button>
+      </div>
+      <div className="explorer-schedule explorer-schedule-selected">
+        {tournament.kind === "f1"
+          ? <F1Schedule event={tournament.nextEvent} />
+          : <TournamentSchedule event={tournament.nextEvent} />}
+        {tournament.kind === "f1" && tournament.rounds?.length ? <F1Rounds rounds={tournament.rounds} /> : null}
+        {tournament.kind !== "f1" && tournament.stages?.length ? <TournamentStages stages={tournament.stages} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function TournamentStages({ stages }) {
+  if (!stages.length) return <span className="explorer-detail-empty">No verified fixture schedule.</span>;
+  return (
+    <div className="explorer-stage-list">
+      {stages.map((stage, index) => (
+        <article className="explorer-stage" key={stage.id || `${stage.name}-${index}`}>
+          <div className="explorer-stage-head">
+            <div>
+              {stage.name ? <h4>{stage.name}</h4> : null}
+              {stage.status ? <small>{humanize(stage.status)}</small> : null}
+            </div>
+          </div>
+          {stage.fixtures?.length ? (
+            <div className="explorer-fixture-list">
+              {stage.fixtures.map((fixture, fixtureIndex) => (
+                <div className="explorer-fixture" key={fixture.id || `${fixture.title}-${fixtureIndex}`}>
+                  <div>
+                    {fixture.title ? <strong>{fixture.title}</strong> : null}
+                    {fixture.teams?.length ? <span>{fixture.teams.join(" vs ")}</span> : null}
+                  </div>
+                  {fixture.startTime ? <time dateTime={fixture.startTime}>{formatExplorerDate(fixture.startTime)}</time> : null}
+                </div>
+              ))}
+            </div>
+          ) : <span className="explorer-detail-empty">No fixtures have been published for this stage.</span>}
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -300,6 +497,29 @@ function TournamentSchedule({ event }) {
       {event.stageName ? <span><small>Stage</small><b>{event.stageName}</b></span> : null}
       {event.teams?.length ? <span><small>Teams</small><b>{event.teams.join(" vs ")}</b></span> : null}
       {event.lockTime ? <span><small>Locks</small><time dateTime={event.lockTime}>{formatExplorerDate(event.lockTime)}</time></span> : null}
+    </div>
+  );
+}
+
+function F1Rounds({ rounds }) {
+  if (!rounds.length) return <span className="explorer-detail-empty">No race rounds have been published by Bento.</span>;
+
+  return (
+    <div className="explorer-round-grid">
+      {rounds.map((round, index) => (
+        <article className={`explorer-round ${round.number ? "" : "no-number"}`} key={round.id || `${round.name}-${index}`}>
+          {round.number ? <div className="explorer-round-number">{round.number}</div> : null}
+          <div className="explorer-round-copy">
+            {round.status ? <small>{humanize(round.status)}</small> : null}
+            {round.name ? <h4>{round.name}</h4> : null}
+            {round.circuit || round.country ? <p><MapPin size={12} /> {[round.circuit, round.country].filter(Boolean).join(", ")}</p> : null}
+          </div>
+          <div className="explorer-round-dates">
+            {round.qualifyingTime ? <span><small>Qualifying</small><time dateTime={round.qualifyingTime}>{formatExplorerDate(round.qualifyingTime)}</time></span> : null}
+            {round.raceTime ? <span><small>Race</small><time dateTime={round.raceTime}>{formatExplorerDate(round.raceTime)}</time></span> : null}
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
