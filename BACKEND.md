@@ -2,13 +2,13 @@
 
 The frontend calls same-origin backend routes so the Bento Builder API key stays server-side:
 
-- `/api/bento-readiness` reports backend configuration.
-- `/api/bento-markets` fetches public market catalog rows.
-- `/api/bento-market?duelId=...` fetches one market by on-chain `duelId`.
-- `/api/bento-login` exchanges a wallet-signed login message for a user JWT.
-- `/api/bento-estimate` previews a bet before placement.
-- `/api/bento-place-bet` places the previewed bet with an idempotency key.
-- `/api/bento-portfolio` reconciles account details and positions after accepted writes.
+- `/api/bento?route=readiness` reports backend configuration.
+- `/api/bento?route=markets` fetches public market catalog rows.
+- `/api/bento?route=market&duelId=...` fetches one market by on-chain `duelId`.
+- `/api/bento?route=login` exchanges a wallet-signed login message for a user JWT.
+- `/api/bento?route=estimate` previews a bet before placement.
+- `/api/bento?route=place-bet` places the previewed bet with an idempotency key.
+- `/api/bento?route=portfolio` reconciles account details and positions after accepted writes.
 
 ## Required Environment Variables
 
@@ -41,9 +41,9 @@ The `PARLAY_TOURNMENT_URL` spelling matches the hackathon reference repo. The ba
 4. Sign the Bento login message:
    `Bento.fun Login\n Timestamp: ${timestamp}\n Wallet: ${address}`
 5. Store the returned user JWT in the browser session.
-6. Preview the selected option and stake through `/api/bento-estimate`.
-7. Place the bet through `/api/bento-place-bet`.
-8. Poll `/api/bento-portfolio` until the account reflects the position.
+6. Preview the selected option and stake through `/api/bento?route=estimate`.
+7. Place the bet through `/api/bento?route=place-bet`.
+8. Poll `/api/bento?route=portfolio` until the account reflects the position.
 
 ## First-Run Checks
 
@@ -51,20 +51,20 @@ Use readiness before testing wallet or bet flows:
 
 ```bash
 npm run dev
-curl http://127.0.0.1:5173/api/bento-readiness
+curl "http://127.0.0.1:5173/api/bento?route=readiness"
 ```
 
 Expected local responses:
 
 - `configured: false` means `.env.local` is missing `BENTO_BUILDER_API_KEY` or `BUILDER_API_KEY`.
 - `configured: true` means the proxy can initialize the Bento SDK with server-side credentials.
-- `/api/bento-markets` should return `{ "markets": [...] }`; if it fails, the JSON error includes the status code and Bento request id when the SDK provides one.
+- `/api/bento?route=markets` should return `{ "markets": [...] }`; if it fails, the JSON error includes the status code and Bento request id when the SDK provides one.
 
 Common fixes:
 
 - Restart Vite after changing `.env.local`; serverless API routes read env at process start.
 - Keep Builder keys out of `VITE_` variables because Vite exposes those to the browser bundle.
-- Use `/api/bento-readiness` first when the UI says the market board needs setup.
+- Use `/api/bento?route=readiness` first when the UI says the market board needs setup.
 
 ## Legacy TxLINE Routes
 

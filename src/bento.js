@@ -11,28 +11,28 @@ export const initialBentoReadiness = {
 
 export async function fetchBentoReadiness() {
   try {
-    return await fetchJson("/api/bento-readiness");
+    return await fetchJson("/api/bento?route=readiness");
   } catch {
     return initialBentoReadiness;
   }
 }
 
 export async function fetchBentoMarkets({ page = 1, limit = 20 } = {}) {
-  const payload = await fetchJson(`/api/bento-markets?page=${page}&limit=${limit}`);
+  const payload = await fetchJson(`/api/bento?route=markets&page=${page}&limit=${limit}`);
   return payload.markets || [];
 }
 
 export async function fetchBentoMarket(duelId) {
-  const payload = await fetchJson(`/api/bento-market?duelId=${encodeURIComponent(duelId)}`);
+  const payload = await fetchJson(`/api/bento?route=market&duelId=${encodeURIComponent(duelId)}`);
   return payload.market;
 }
 
 export async function fetchBentoMarketAnalytics(duelId) {
-  return fetchJson(`/api/bento-market-analytics?duelId=${encodeURIComponent(duelId)}`);
+  return fetchJson(`/api/bento?route=market-analytics&duelId=${encodeURIComponent(duelId)}`);
 }
 
 export async function fetchBentoUserShares({ token, duelId }) {
-  return fetchJson(`/api/bento-user-shares?duelId=${encodeURIComponent(duelId)}`, token);
+  return fetchJson(`/api/bento?route=user-shares&duelId=${encodeURIComponent(duelId)}`, token);
 }
 
 export function marketIndexFromDuelId(markets = [], duelId = "") {
@@ -69,39 +69,39 @@ function cleanTeamName(value) {
 }
 
 export async function loginBentoWallet({ address, signature, timestamp, username }) {
-  return postJson("/api/bento-login", { address, signature, timestamp, username });
+  return postJson("/api/bento?route=login", { address, signature, timestamp, username });
 }
 
 export async function createBentoWalletLink({ returnUrl, state }) {
-  return postJson("/api/bento-link", { returnUrl, state });
+  return postJson("/api/bento?route=link", { returnUrl, state });
 }
 
 export async function exchangeBentoWalletCode({ code }) {
-  return postJson("/api/bento-exchange", { code });
+  return postJson("/api/bento?route=exchange", { code });
 }
 
 export async function estimateBentoBet({ token, duelId, optionIndex, amountWei, slippageBps = 100 }) {
   return postJson(
-    "/api/bento-estimate",
+    "/api/bento?route=estimate",
     { duelId, optionIndex, betAmountUsdc: amountWei, slippageBps },
     token,
   );
 }
 
 export async function placeBentoBet({ token, idempotencyKey, bet }) {
-  return postJson("/api/bento-place-bet", { idempotencyKey, bet }, token);
+  return postJson("/api/bento?route=place-bet", { idempotencyKey, bet }, token);
 }
 
 export async function fetchBentoPortfolio({ token, account } = {}) {
-  return postJson("/api/bento-portfolio", { account }, token);
+  return postJson("/api/bento?route=portfolio", { account }, token);
 }
 
 export async function estimateBentoSell({ token, ...body }) {
-  return postJson("/api/bento-sell-estimate", body, token);
+  return postJson("/api/bento?route=sell-estimate", body, token);
 }
 
 export async function sellBentoBet({ token, idempotencyKey, sell }) {
-  return postJson("/api/bento-sell", { idempotencyKey, sell }, token);
+  return postJson("/api/bento?route=sell", { idempotencyKey, sell }, token);
 }
 
 export async function fetchLeaderboardUsers() {

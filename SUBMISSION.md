@@ -6,13 +6,13 @@ haramball.xyz is scoped as a World Cup prediction-market client designed to brin
 
 | Bento surface | haramball.xyz coverage |
 | --- | --- |
-| Public market catalog | `/api/bento-markets` powers the primary card feed. |
-| Market detail | `/api/bento-market` reads by `duelId`, not database row id. |
+| Public market catalog | `/api/bento?route=markets` powers the primary card feed. |
+| Market detail | `/api/bento?route=market` reads by `duelId`, not database row id. |
 | Wallet login | Browser wallet signs Bento's EOA login message. |
 | Managed account | UI separates signing wallet from market account. |
-| Quote flow | `/api/bento-estimate` previews shares/slippage before placement. |
-| Bet placement | `/api/bento-place-bet` submits the previewed position with idempotency. |
-| Reconciliation | `/api/bento-portfolio` polls account details and positions after acceptance. |
+| Quote flow | `/api/bento?route=estimate` previews shares/slippage before placement. |
+| Bet placement | `/api/bento?route=place-bet` submits the previewed position with idempotency. |
+| Reconciliation | `/api/bento?route=portfolio` polls account details and positions after acceptance. |
 | Growth loop | Profiles, leaderboard, match tickets, and onboarding make the market board feel social and repeatable. |
 
 ## Honest Scope Boundary

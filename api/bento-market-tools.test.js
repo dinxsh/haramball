@@ -1,13 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createBentoMarketAnalyticsHandler } from "./bento-market-analytics.js";
-import { createBentoSellEstimateHandler } from "./bento-sell-estimate.js";
-import { createBentoSellHandler } from "./bento-sell.js";
-import { createBentoUserSharesHandler } from "./bento-user-shares.js";
+import {
+  createBentoHandler,
+  createBentoMarketAnalyticsHandler,
+  createBentoSellEstimateHandler,
+  createBentoSellHandler,
+  createBentoUserSharesHandler,
+} from "./bento.js";
+
+test("consolidated Bento route rejects unknown subroutes", async () => {
+  const response = responseRecorder();
+
+  await createBentoHandler()({ headers: {}, url: "/api/bento?route=missing" }, response);
+
+  assert.equal(response.statusCode, 404);
+  assert.match(JSON.parse(response.body).error.message, /unknown bento route/i);
+});
 
 test("market analytics route requires duelId and forwards query", async () => {
   const missing = responseRecorder();
-  await createBentoMarketAnalyticsHandler(async () => ({}))({ headers: {}, url: "/api/bento-market-analytics" }, missing);
+  await createBentoMarketAnalyticsHandler(async () => ({}))({ headers: {}, url: "/api/bento?route=market-analytics" }, missing);
   assert.equal(missing.statusCode, 400);
 
   const response = responseRecorder();
@@ -16,7 +28,7 @@ test("market analytics route requires duelId and forwards query", async () => {
     received = duelId;
     return { analytics: { duelId } };
   });
-  await handler({ headers: {}, url: "/api/bento-market-analytics?duelId=duel-1" }, response);
+  await handler({ headers: {}, url: "/api/bento?route=market-analytics&duelId=duel-1" }, response);
 
   assert.equal(response.statusCode, 200);
   assert.equal(received, "duel-1");
@@ -31,7 +43,7 @@ test("user shares route forwards bearer token and duelId", async () => {
     return { shares: [{ side: 0 }] };
   });
 
-  await handler({ headers: { authorization: "Bearer jwt" }, url: "/api/bento-user-shares?duelId=duel-1" }, response);
+  await handler({ headers: { authorization: "Bearer jwt" }, url: "/api/bento?route=user-shares&duelId=duel-1" }, response);
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(received, { token: "jwt", duelId: "duel-1" });
@@ -45,7 +57,7 @@ test("sell estimate and sell routes forward idempotent JSON bodies", async () =>
     return { estimate: { ok: true } };
   })({
     headers: { authorization: "Bearer jwt" },
-    url: "/api/bento-sell-estimate",
+    url: "/api/bento?route=sell-estimate",
     [Symbol.asyncIterator]: async function* body() {
       yield Buffer.from(JSON.stringify({ duelId: "duel-1", sharesIn: "10" }));
     },
@@ -61,7 +73,7 @@ test("sell estimate and sell routes forward idempotent JSON bodies", async () =>
     return { accepted: true };
   })({
     headers: { authorization: "Bearer jwt" },
-    url: "/api/bento-sell",
+    url: "/api/bento?route=sell",
     [Symbol.asyncIterator]: async function* body() {
       yield Buffer.from(JSON.stringify({ idempotencyKey: "idem", sell: { duelId: "duel-1" } }));
     },

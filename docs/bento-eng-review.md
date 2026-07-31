@@ -67,15 +67,15 @@ Data flow:
 ```text
 TournamentPage
   -> /api/tournament?slug=...
-  -> /api/tournament-status?slug=... + Bearer token
+  -> /api/tournament?route=status&slug=... + Bearer token
   -> Bento tournaments getEligibility/getMyStatus
   -> CTA state: Connect / Enter / Entered / Not eligible / Final
 ```
 
 Endpoints to add:
 
-- `GET /api/tournament-status?slug=...`
-- `POST /api/tournament-enter`
+- `GET /api/tournament?route=status&slug=...`
+- `POST /api/tournament?route=enter`
 - F1 branch: `sdk.tournaments.f1.getEligibility`, `enter`, `reenter`, `getMyPicks`.
 - Bracket branch: `sdk.tournaments.tournaments.getEligibility`, `getMyStatus`, `enter`.
 
@@ -101,9 +101,9 @@ F1:
 
 ### Phase 4: Market analytics and exits
 
-- Add `GET /api/bento-market-analytics?duelId=...` for yes-percentage snapshots and sell liquidity.
-- Add `GET /api/bento-user-shares?duelId=...`.
-- Add `POST /api/bento-sell-estimate` and `POST /api/bento-sell`.
+- Add `GET /api/bento?route=market-analytics&duelId=...` for yes-percentage snapshots and sell liquidity.
+- Add `GET /api/bento?route=user-shares&duelId=...`.
+- Add `POST /api/bento?route=sell-estimate` and `POST /api/bento?route=sell`.
 - Render position drawer only when Bento confirms shares.
 
 ## NOT In Scope For The Next PR

@@ -17,7 +17,7 @@ Sources checked: Polymarket, Kalshi, Manifold, Bento docs, and the installed `@b
 1. **Actual tournament entry and user status**
    - Competitor parity: users expect a clear join/entered/not-eligible state, not just a schedule page.
    - Bento APIs: `sdk.tournaments.tournaments.getEligibility`, `getMyStatus`, `enter`, `getDepositInstructions`, `withdraw`; F1 has `getEligibility`, `enter`, `reenter`, `getMyPicks`.
-   - Proposed next scope: add `/api/tournament-status` and `/api/tournament-enter`, then make the tournament page primary CTA become `Enter`, `Entered`, or `Not eligible`.
+   - Proposed next scope: add `/api/tournament?route=status` and `/api/tournament?route=enter`, then make the tournament page primary CTA become `Enter`, `Entered`, or `Not eligible`.
 
 2. **Live trader identity, portfolio, and public profiles**
    - Competitor parity: Polymarket and Kalshi emphasize PnL leaderboards/public trader discovery; Manifold emphasizes social identity and holders/trades.

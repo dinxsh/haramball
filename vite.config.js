@@ -6,45 +6,17 @@ import readinessHandler from "./server/txline-routes/readiness.js";
 import scoreValidationHandler from "./server/txline-routes/score-validation.js";
 import activateHandler from "./server/txline-routes/activate.js";
 import activationMessageHandler from "./server/txline-routes/activation-message.js";
-import bentoEstimateHandler from "./api/bento-estimate.js";
-import bentoExchangeHandler from "./api/bento-exchange.js";
-import bentoMarketAnalyticsHandler from "./api/bento-market-analytics.js";
+import bentoHandler from "./api/bento.js";
 import explorerHandler from "./api/explorer.js";
 import tournamentHandler from "./api/tournament.js";
-import tournamentEnterHandler from "./api/tournament-enter.js";
-import tournamentStatusHandler from "./api/tournament-status.js";
-import bentoLinkHandler from "./api/bento-link.js";
-import bentoLoginHandler from "./api/bento-login.js";
-import bentoMarketHandler from "./api/bento-market.js";
-import bentoMarketsHandler from "./api/bento-markets.js";
-import bentoPlaceBetHandler from "./api/bento-place-bet.js";
-import bentoPortfolioHandler from "./api/bento-portfolio.js";
-import bentoReadinessHandler from "./api/bento-readiness.js";
-import bentoSellHandler from "./api/bento-sell.js";
-import bentoSellEstimateHandler from "./api/bento-sell-estimate.js";
-import bentoUserSharesHandler from "./api/bento-user-shares.js";
 import usersHandler from "./api/users.js";
 
 const apiHandlers = {
   "/api/activate": activateHandler,
   "/api/activation-message": activationMessageHandler,
-  "/api/bento-estimate": bentoEstimateHandler,
-  "/api/bento-exchange": bentoExchangeHandler,
-  "/api/bento-market-analytics": bentoMarketAnalyticsHandler,
+  "/api/bento": bentoHandler,
   "/api/explorer": explorerHandler,
   "/api/tournament": tournamentHandler,
-  "/api/tournament-enter": tournamentEnterHandler,
-  "/api/tournament-status": tournamentStatusHandler,
-  "/api/bento-link": bentoLinkHandler,
-  "/api/bento-login": bentoLoginHandler,
-  "/api/bento-market": bentoMarketHandler,
-  "/api/bento-markets": bentoMarketsHandler,
-  "/api/bento-place-bet": bentoPlaceBetHandler,
-  "/api/bento-portfolio": bentoPortfolioHandler,
-  "/api/bento-readiness": bentoReadinessHandler,
-  "/api/bento-sell": bentoSellHandler,
-  "/api/bento-sell-estimate": bentoSellEstimateHandler,
-  "/api/bento-user-shares": bentoUserSharesHandler,
   "/api/fixtures": fixturesHandler,
   "/api/live": liveHandler,
   "/api/readiness": readinessHandler,

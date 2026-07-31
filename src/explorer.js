@@ -52,9 +52,9 @@ export async function fetchTournamentDetail(slug, pagination) {
 }
 
 export async function fetchTournamentStatus(slug, { token, wallet } = {}) {
-  const params = new URLSearchParams({ slug });
+  const params = new URLSearchParams({ route: "status", slug });
   if (wallet) params.set("wallet", wallet);
-  const response = await fetch(`/api/tournament-status?${params}`, {
+  const response = await fetch(`/api/tournament?${params}`, {
     headers: {
       Accept: "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -66,7 +66,7 @@ export async function fetchTournamentStatus(slug, { token, wallet } = {}) {
 }
 
 export async function enterTournament({ token, ...body }) {
-  const response = await fetch("/api/tournament-enter", {
+  const response = await fetch("/api/tournament?route=enter", {
     method: "POST",
     headers: {
       Accept: "application/json",
