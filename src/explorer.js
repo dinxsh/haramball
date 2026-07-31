@@ -27,6 +27,22 @@ export function resetExplorerCache() {
   explorerRequest = null;
 }
 
+export function nextExplorerModalState(state = {}, action = {}) {
+  if (action.type === "toggle-schedule") {
+    const nextExpandedId = state.expandedId === action.itemId ? "" : action.itemId;
+    return { expandedId: nextExpandedId, selectedSlug: state.selectedSlug || "" };
+  }
+
+  if (action.type === "select-tournament") {
+    return { expandedId: "", selectedSlug: action.slug || "" };
+  }
+
+  return {
+    expandedId: state.expandedId || "",
+    selectedSlug: state.selectedSlug || "",
+  };
+}
+
 export function tournamentSlugFromPath(pathname = "") {
   const match = String(pathname).match(/^\/tournaments\/([^/]+)\/?$/);
   if (!match) return "";

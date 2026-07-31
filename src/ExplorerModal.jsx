@@ -18,6 +18,7 @@ import {
   filterExplorerItems,
   formatExplorerDate,
   formatExplorerPrize,
+  nextExplorerModalState,
   preloadExplorerItems,
 } from "./explorer.js";
 
@@ -299,13 +300,21 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
               item={item}
               key={item.id}
               onSelectTournament={(slug) => {
-                setSelectedSlug(slug);
-                setExpandedId(item.id);
+                const nextState = nextExplorerModalState(
+                  { expandedId, selectedSlug },
+                  { type: "select-tournament", slug },
+                );
+                setSelectedSlug(nextState.selectedSlug);
+                setExpandedId(nextState.expandedId);
                 onSelectTournament?.(slug);
               }}
               onToggle={() => {
-                setExpandedId((current) => current === item.id ? "" : item.id);
-                setSelectedSlug(item.slug);
+                const nextState = nextExplorerModalState(
+                  { expandedId, selectedSlug },
+                  { type: "toggle-schedule", itemId: item.id },
+                );
+                setExpandedId(nextState.expandedId);
+                setSelectedSlug(nextState.selectedSlug);
               }}
             />
           )) : null}
@@ -318,7 +327,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
                 <span className="explorer-selected-kicker">Selected competition</span>
                 <h3>{selectedTournament?.name || "Loading competition..."}</h3>
               </div>
-              <button className="explorer-selected-close" onClick={() => setSelectedSlug("")} type="button">
+              <button className="explorer-selected-close" onClick={() => { setSelectedSlug(""); setExpandedId(""); }} type="button">
                 Close
               </button>
             </div>

@@ -72,6 +72,23 @@ test("filters lifecycle and orders nearest dates first", () => {
   );
 });
 
+test("keeps explorer schedule expansion separate from selected competition entry", () => {
+  assert.deepEqual(
+    explorerModule.nextExplorerModalState(
+      { expandedId: "", selectedSlug: "" },
+      { type: "toggle-schedule", itemId: "f1-14" },
+    ),
+    { expandedId: "f1-14", selectedSlug: "" },
+  );
+  assert.deepEqual(
+    explorerModule.nextExplorerModalState(
+      { expandedId: "f1-14", selectedSlug: "" },
+      { type: "select-tournament", slug: "f1-14" },
+    ),
+    { expandedId: "", selectedSlug: "f1-14" },
+  );
+});
+
 test("formats Bento base-unit prize pools without floating point loss", () => {
   assert.equal(formatExplorerPrize("25000000000000000000", "usdc"), "25 USDC");
   assert.equal(formatExplorerPrize(null, "credits"), "");
