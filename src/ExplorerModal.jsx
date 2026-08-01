@@ -21,6 +21,7 @@ import {
   formatExplorerPrize,
   nextExplorerModalState,
   preloadExplorerItems,
+  preloadTournamentDetail,
   readCachedExplorerItems,
   shouldShowExplorerSkeleton,
 } from "./explorer.js";
@@ -100,6 +101,16 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
   useEffect(() => {
     if (open) setStatus(defaultExplorerStatus(initialStatus));
   }, [initialStatus, open]);
+
+  useEffect(() => {
+    if (!open || !loaded || !visibleItems.length) return;
+    visibleItems
+      .filter((item) => item.kind === "f1" && item.status !== "ended")
+      .slice(0, 3)
+      .forEach((item) => {
+        preloadTournamentDetail(item.slug);
+      });
+  }, [open, loaded, visibleItems]);
 
   useEffect(() => {
     if (!expandedId) {

@@ -211,6 +211,7 @@ test("parses canonical tournament paths without treating other routes as tournam
 });
 
 test("fetches details for the selected tournament slug", async () => {
+  explorerModule.resetExplorerCache();
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   globalThis.fetch = async (url) => {
@@ -226,10 +227,40 @@ test("fetches details for the selected tournament slug", async () => {
     assert.equal(requestedUrl, "/api/tournament?slug=world-cup-c774b2e1");
   } finally {
     globalThis.fetch = originalFetch;
+    explorerModule.resetExplorerCache();
+  }
+});
+
+test("dedupes and caches tournament detail requests for bracket previews", async () => {
+  explorerModule.resetExplorerCache();
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  let releaseRequest;
+  const requestGate = new Promise((resolve) => { releaseRequest = resolve; });
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    await requestGate;
+    return { ok: true, json: async () => ({ tournament: { slug: "f1-2026-grid-predictor-f1season" } }) };
+  };
+
+  try {
+    const preload = explorerModule.preloadTournamentDetail("f1-2026-grid-predictor-f1season");
+    const expand = explorerModule.fetchTournamentDetail("f1-2026-grid-predictor-f1season");
+    assert.equal(fetchCount, 1);
+    releaseRequest();
+    assert.deepEqual(await preload, { slug: "f1-2026-grid-predictor-f1season" });
+    assert.deepEqual(await expand, { slug: "f1-2026-grid-predictor-f1season" });
+
+    await explorerModule.fetchTournamentDetail("f1-2026-grid-predictor-f1season");
+    assert.equal(fetchCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    explorerModule.resetExplorerCache();
   }
 });
 
 test("fetches a selected leaderboard page without losing the tournament slug", async () => {
+  explorerModule.resetExplorerCache();
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   globalThis.fetch = async (url) => {
@@ -245,5 +276,6 @@ test("fetches a selected leaderboard page without losing the tournament slug", a
     );
   } finally {
     globalThis.fetch = originalFetch;
+    explorerModule.resetExplorerCache();
   }
 });

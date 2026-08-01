@@ -1,9 +1,12 @@
 const PRIORITY_SPORTS = ["Football", "Formula 1"];
 const TOKEN_DECIMALS = 18n;
 const EXPLORER_SESSION_CACHE_KEY = "haramball-explorer-items-v1";
+const TOURNAMENT_DETAIL_SESSION_CACHE_PREFIX = "haramball-tournament-detail-v1:";
 const EXPLORER_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 let explorerCache = null;
 let explorerRequest = null;
+const tournamentDetailCache = new Map();
+const tournamentDetailRequests = new Map();
 
 export function defaultExplorerStatus(status) {
   return status || "All";
@@ -39,6 +42,8 @@ export function preloadExplorerItems() {
 export function resetExplorerCache() {
   explorerCache = null;
   explorerRequest = null;
+  tournamentDetailCache.clear();
+  tournamentDetailRequests.clear();
   clearCachedExplorerItems();
 }
 
@@ -67,6 +72,30 @@ function clearCachedExplorerItems() {
   try {
     if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(EXPLORER_SESSION_CACHE_KEY);
   } catch {}
+}
+
+function readCachedTournamentDetail(slug, { now = Date.now() } = {}) {
+  try {
+    if (typeof sessionStorage === "undefined" || !slug) return null;
+    const cached = JSON.parse(sessionStorage.getItem(`${TOURNAMENT_DETAIL_SESSION_CACHE_PREFIX}${slug}`) || "null");
+    if (!cached || !cached.tournament) return null;
+    if (now - Number(cached.savedAt || 0) > EXPLORER_SESSION_CACHE_TTL_MS) return null;
+    return cached.tournament;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedTournamentDetail(slug, tournament) {
+  try {
+    if (typeof sessionStorage === "undefined" || !slug || !tournament) return;
+    sessionStorage.setItem(`${TOURNAMENT_DETAIL_SESSION_CACHE_PREFIX}${slug}`, JSON.stringify({
+      savedAt: Date.now(),
+      tournament,
+    }));
+  } catch {
+    // Detail cache only improves perceived speed; storage failures should stay silent.
+  }
 }
 
 export function nextExplorerModalState(state = {}, action = {}) {
@@ -99,18 +128,44 @@ export function tournamentSlugFromPath(pathname = "") {
   }
 }
 
+export function preloadTournamentDetail(slug) {
+  return fetchTournamentDetail(slug).catch(() => null);
+}
+
 export async function fetchTournamentDetail(slug, pagination) {
+  const cacheable = !pagination;
+  if (cacheable) {
+    const cached = tournamentDetailCache.get(slug) || readCachedTournamentDetail(slug);
+    if (cached) {
+      tournamentDetailCache.set(slug, cached);
+      return cached;
+    }
+    if (tournamentDetailRequests.has(slug)) return tournamentDetailRequests.get(slug);
+  }
+
   const params = new URLSearchParams({ slug });
   if (pagination) {
     params.set("leaderboardPage", String(pagination.leaderboardPage));
     params.set("leaderboardPageSize", String(pagination.leaderboardPageSize));
   }
-  const response = await fetch(`/api/tournament?${params}`, {
+
+  const request = fetch(`/api/tournament?${params}`, {
     headers: { Accept: "application/json" },
+  }).then(async (response) => {
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error?.message || `Tournament returned ${response.status}`);
+    const tournament = payload?.tournament || null;
+    if (cacheable && tournament) {
+      tournamentDetailCache.set(slug, tournament);
+      writeCachedTournamentDetail(slug, tournament);
+    }
+    return tournament;
+  }).finally(() => {
+    if (cacheable) tournamentDetailRequests.delete(slug);
   });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.error?.message || `Tournament returned ${response.status}`);
-  return payload?.tournament || null;
+
+  if (cacheable) tournamentDetailRequests.set(slug, request);
+  return request;
 }
 
 export async function fetchTournamentStatus(slug, { token, wallet } = {}) {

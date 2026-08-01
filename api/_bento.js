@@ -7,6 +7,8 @@ const DEFAULT_TOURNAMENTS_URL = "https://bento-fun-tournaments-backend-3nku.onre
 const EXPLORER_CACHE_TTL_MS = 60 * 1000;
 let explorerCatalogCache = null;
 let explorerCatalogRequest = null;
+const tournamentDetailCache = new Map();
+const tournamentDetailRequests = new Map();
 
 export function getBentoServerConfig() {
   const baseUrl = stripTrailingSlash(process.env.BENTO_URL || DEFAULT_BENTO_URL);
@@ -88,6 +90,29 @@ async function requestBentoExplorer({ now = Date.now() } = {}) {
 }
 
 export async function fetchBentoTournament(slug, {
+  now = Date.now(),
+  leaderboardPage = 1,
+  leaderboardPageSize = 10,
+} = {}) {
+  const cacheKey = `${slug}:${numberOr(leaderboardPage, 1)}:${numberOr(leaderboardPageSize, 10)}`;
+  const cached = tournamentDetailCache.get(cacheKey);
+  if (cached && now - cached.savedAt < EXPLORER_CACHE_TTL_MS) return cached.payload;
+  if (tournamentDetailRequests.has(cacheKey)) return tournamentDetailRequests.get(cacheKey);
+
+  const request = requestBentoTournament(slug, { now, leaderboardPage, leaderboardPageSize })
+    .then((payload) => {
+      tournamentDetailCache.set(cacheKey, { savedAt: now, payload });
+      return payload;
+    })
+    .finally(() => {
+      tournamentDetailRequests.delete(cacheKey);
+    });
+
+  tournamentDetailRequests.set(cacheKey, request);
+  return request;
+}
+
+async function requestBentoTournament(slug, {
   now = Date.now(),
   leaderboardPage = 1,
   leaderboardPageSize = 10,
