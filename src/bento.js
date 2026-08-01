@@ -380,8 +380,66 @@ export function normalizeExternalLogin(payload = {}) {
   };
 }
 
+export function portfolioSummary(portfolio = {}) {
+  const details = portfolio?.details?.data || portfolio?.details?.account || portfolio?.details || {};
+  const positions = portfolioPositions(portfolio);
+  const balance = firstValue(details, ["bentoBalance", "balance", "totalBalance", "usdcBalance", "availableBalance", "walletBalance"], "0");
+  const totalValue = firstValue(details, ["portfolioValue", "totalValue", "accountValue", "equity", "netValue"], balance);
+  const pnl = firstValue(details, ["pnl", "profitLoss", "totalPnl", "realizedPnl"], "0");
+
+  return {
+    balance: formatPortfolioAmount(balance),
+    totalValue: formatPortfolioAmount(totalValue),
+    pnl: formatPortfolioAmount(pnl),
+    positionsCount: positions.length,
+    marketsCreated: Number(firstValue(details, ["marketsCreated", "createdMarkets", "duelsCreated"], 0)) || 0,
+  };
+}
+
+export function portfolioPositions(portfolio = {}) {
+  const source = portfolio?.positions?.data ?? portfolio?.positions?.positions ?? portfolio?.positions?.items ?? portfolio?.positions;
+  return listFrom(source).map((position, index) => {
+    const market = position.market || position.duel || position.raw || {};
+    const title = position.title || position.question || market.title || market.question || market.betString || `Position ${index + 1}`;
+    const outcome = position.outcome || position.option || position.side || position.optionLabel || market.option || "";
+    const shares = position.shares || position.shareBalance || position.amount || position.balance || "";
+    const value = position.value || position.currentValue || position.usdcValue || position.notional || "";
+    return {
+      id: String(position.id || position.duelId || market.duelId || `${title}-${index}`),
+      title: String(title),
+      outcome: String(outcome || "Open"),
+      shares: shares === "" ? "" : formatPortfolioAmount(shares),
+      value: value === "" ? "" : formatPortfolioAmount(value),
+      status: String(position.status || market.status || "open"),
+    };
+  });
+}
+
 export function shortAddress(address) {
   return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
+}
+
+function firstValue(source = {}, keys = [], fallback = "") {
+  for (const key of keys) {
+    if (source?.[key] !== undefined && source[key] !== null && source[key] !== "") return source[key];
+  }
+  return fallback;
+}
+
+function listFrom(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value.data)) return value.data;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.positions)) return value.positions;
+  return [value];
+}
+
+function formatPortfolioAmount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value || "0");
+  if (Math.abs(numeric) >= 1e12) return weiToHuman(String(Math.trunc(numeric)));
+  return numeric.toFixed(2);
 }
 
 async function fetchJson(url, token) {

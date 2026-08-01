@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as bentoModule from "./bento.js";
-import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, marketResultSummary, normalizeBentoLogin, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
+import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -27,6 +27,41 @@ test("converts human amounts using Bento collateral decimals", () => {
 test("formats Bento base units for compact display", () => {
   assert.equal(weiToHuman("1000000000000000000"), "1");
   assert.equal(weiToHuman("1234500000000000000"), "1.2345");
+});
+
+test("normalizes Bento portfolio summary and positions", () => {
+  const portfolio = {
+    details: { data: { bentoBalance: "12.5", portfolioValue: "19", marketsCreated: 2, pnl: "-1.25" } },
+    positions: {
+      data: [
+        {
+          duelId: "duel-1",
+          market: { betString: "Will Portugal win?", status: "open" },
+          outcome: "YES",
+          shares: "5",
+          currentValue: "7.25",
+        },
+      ],
+    },
+  };
+
+  assert.deepEqual(portfolioSummary(portfolio), {
+    balance: "12.50",
+    totalValue: "19.00",
+    pnl: "-1.25",
+    positionsCount: 1,
+    marketsCreated: 2,
+  });
+  assert.deepEqual(portfolioPositions(portfolio), [
+    {
+      id: "duel-1",
+      title: "Will Portugal win?",
+      outcome: "YES",
+      shares: "5.00",
+      value: "7.25",
+      status: "open",
+    },
+  ]);
 });
 
 test("normalizes Bento login token and managed account variants", () => {

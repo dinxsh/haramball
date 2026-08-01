@@ -50,6 +50,8 @@ import {
   normalizeExternalLogin,
   normalizeBentoLogin,
   placeBentoBet,
+  portfolioPositions,
+  portfolioSummary,
   saveLeaderboardUser,
   shortAddress,
   tokenDecimalsFromMarket,
@@ -1058,6 +1060,10 @@ function MarketApp() {
                       <Settings size={15} />
                       Settings
                     </button>
+                    <a href="/portfolio">
+                      <Wallet size={15} />
+                      Portfolio
+                    </a>
                     <button onClick={() => setTheme((value) => value === "classic" ? "night" : "classic")} type="button">
                       <Palette size={15} />
                       Theme: {theme === "classic" ? "Classic" : "Night"}
@@ -1328,7 +1334,155 @@ function MarketApp() {
 
 function App() {
   const tournamentSlug = tournamentSlugFromPath(window.location.pathname);
+  if (window.location.pathname === "/portfolio") return <PortfolioPage />;
   return tournamentSlug ? <TournamentPage slug={tournamentSlug} /> : <MarketApp />;
+}
+
+function PortfolioPage() {
+  const [portfolio, setPortfolio] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [tab, setTab] = useState("positions");
+  const [chartMode, setChartMode] = useState("cumulative");
+  const [range, setRange] = useState("all");
+  const token = sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY) || "";
+  const account = sessionStorage.getItem(SESSION_ACCOUNT_STORAGE_KEY) || sessionStorage.getItem(SESSION_WALLET_STORAGE_KEY) || "";
+  const summary = portfolioSummary(portfolio);
+  const positions = portfolioPositions(portfolio);
+  const tabs = [
+    ["positions", "Positions", <Coins size={16} />],
+    ["history", "History", <Clock3 size={16} />],
+    ["parlays", "Parlays", <BadgeDollarSign size={16} />],
+    ["tournaments", "Tournaments", <Trophy size={16} />],
+    ["deposits", "Deposit History", <Wallet size={16} />],
+    ["withdrawals", "Withdrawal History", <ChevronDown size={16} />],
+  ];
+
+  const loadPortfolio = async () => {
+    if (!token && !account) {
+      setError("Connect a Bento wallet from the home page to load portfolio data.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      setPortfolio(await fetchBentoPortfolio({ token, account }));
+    } catch (nextError) {
+      setError(nextError.message || "Portfolio failed to load");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPortfolio();
+  }, []);
+
+  return (
+    <main className="portfolio-shell">
+      <header className="portfolio-topbar">
+        <a className="back-link" href="/">haramball.xyz</a>
+        <div>
+          <h1>Portfolio</h1>
+          <p>{account ? `Market account ${shortAddress(account)}` : "Bento account scope"}</p>
+        </div>
+        <button className="portfolio-refresh" onClick={loadPortfolio} type="button">Refresh</button>
+      </header>
+
+      <section className="portfolio-overview">
+        <div className="portfolio-wallet-stack">
+          <article className="portfolio-balance-card">
+            <div className="portfolio-segment">
+              <button className="active" type="button">Pro</button>
+              <button type="button">Free to Play</button>
+            </div>
+            <span>Bento Balance</span>
+            <strong>${summary.balance}</strong>
+            <button className="portfolio-primary" type="button">Add Funds</button>
+          </article>
+          <article className="portfolio-balance-card secondary">
+            <strong>${summary.totalValue}</strong>
+            <span>Bento Account</span>
+            <div className="portfolio-action-row">
+              <button type="button">Add Funds</button>
+              <button type="button">Withdraw</button>
+            </div>
+          </article>
+        </div>
+
+        <article className="portfolio-chart-card">
+          <div className="portfolio-chart-head">
+            <span className="portfolio-chart-icon"><Gauge size={18} /></span>
+            <div className="portfolio-segment compact">
+              <button className="active" type="button">Predictions</button>
+              <button type="button">Liquidity</button>
+            </div>
+            <select onChange={(event) => setChartMode(event.target.value)} value={chartMode}>
+              <option value="cumulative">Cumulative</option>
+              <option value="daily">Daily</option>
+            </select>
+            <div className="portfolio-range">
+              {["24h", "7d", "30d", "all"].map((item) => (
+                <button className={range === item ? "active" : ""} key={item} onClick={() => setRange(item)} type="button">{item === "all" ? "All" : item}</button>
+              ))}
+            </div>
+          </div>
+          <div className="portfolio-chart-body">
+            {loading ? "Loading chart..." : error ? error : positions.length ? "Portfolio performance updates after Bento returns chart snapshots." : "No portfolio history yet."}
+          </div>
+          <div className="portfolio-chart-stats">
+            <span><small>Total predictions</small><b>{summary.positionsCount}</b></span>
+            <span><small>Created</small><b>{summary.marketsCreated}</b></span>
+            <span><small>P/L</small><b>${summary.pnl}</b></span>
+          </div>
+        </article>
+      </section>
+
+      <section className="portfolio-tabs" aria-label="Portfolio sections">
+        {tabs.map(([id, label, icon]) => (
+          <button className={tab === id ? "active" : ""} key={id} onClick={() => setTab(id)} type="button">
+            {icon}
+            {label}
+          </button>
+        ))}
+      </section>
+
+      <section className="portfolio-content">
+        {tab === "positions" ? (
+          loading ? <PortfolioLoading label="Loading positions..." /> : positions.length ? <PortfolioPositions rows={positions} /> : <PortfolioEmpty label={error || "No open Bento positions yet."} />
+        ) : (
+          <PortfolioEmpty label={`${tabs.find(([id]) => id === tab)?.[1]} will appear here when Bento returns account events.`} />
+        )}
+      </section>
+    </main>
+  );
+}
+
+function PortfolioPositions({ rows }) {
+  return (
+    <div className="portfolio-position-list">
+      {rows.map((position) => (
+        <article className="portfolio-position-row" key={position.id}>
+          <div>
+            <strong>{position.title}</strong>
+            <span>{position.outcome} - {position.status}</span>
+          </div>
+          <b>{position.shares || "--"} shares</b>
+          <b>{position.value ? `$${position.value}` : "--"}</b>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function PortfolioLoading({ label }) {
+  return <div className="portfolio-state">{label}</div>;
+}
+
+function PortfolioEmpty({ label }) {
+  return <div className="portfolio-state">{label}</div>;
 }
 
 function LeaderboardCard({ loading = false, profiles, wide = false }) {
