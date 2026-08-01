@@ -57,8 +57,20 @@ test("searches league, team, Grand Prix, circuit, and country metadata", () => {
   );
 });
 
-test("derives prioritized sports from valid catalog items", () => {
-  assert.deepEqual(explorerSports(items), ["All", "Football", "Formula 1", "Cricket"]);
+test("shows Bento sport filters plus catalog-specific extras", () => {
+  assert.deepEqual(explorerSports(items), [
+    "All",
+    "Cricket",
+    "Football",
+    "Basketball",
+    "Hockey",
+    "Formula 1",
+    "American Football",
+    "Baseball",
+    "Tennis",
+    "Esports",
+    "Rugby",
+  ]);
 });
 
 test("filters lifecycle and orders nearest dates first", () => {
@@ -69,6 +81,17 @@ test("filters lifecycle and orders nearest dates first", () => {
   assert.deepEqual(
     filterExplorerItems(items, { query: "", sport: "Football", status: "ended" }).map((item) => item.id),
     ["football-ended"],
+  );
+});
+
+test("sorts Explorer catalog by 24hr volume when provided", () => {
+  assert.deepEqual(
+    filterExplorerItems([
+      { ...items[0], volume24h: 5 },
+      { ...items[1], volume24h: 20 },
+      { ...items[2], volume24h: 10 },
+    ], { query: "", sort: "volume24h", sport: "All", status: "All" }).map((item) => item.id),
+    ["football-live", "football-ended", "f1-14"],
   );
 });
 

@@ -2778,7 +2778,7 @@ button:disabled {
 
 .explorer-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 12px;
   padding: 20px 24px 14px;
 }
@@ -2830,6 +2830,40 @@ button:disabled {
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+}
+
+.explorer-sort {
+  position: relative;
+  min-width: 168px;
+  min-height: 54px;
+  display: inline-flex;
+  align-items: center;
+  color: #050507;
+  background: #fffdf2;
+  border: 2px solid #050507;
+  border-radius: 12px;
+  box-shadow: 0 3px 0 #050507;
+}
+
+.explorer-sort select {
+  width: 100%;
+  height: 100%;
+  padding: 0 38px 0 14px;
+  appearance: none;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.explorer-sort svg {
+  position: absolute;
+  right: 13px;
+  pointer-events: none;
 }
 
 .is-spinning {
@@ -3028,6 +3062,7 @@ button.explorer-card-link {
 
 .explorer-status.upcoming { background: #bfefff; }
 .explorer-status.live { background: #b9efc8; }
+.explorer-status.listed { background: #efe8d2; }
 .explorer-status.ended { background: #f5dfa0; }
 
 .explorer-card h3 {
@@ -4601,6 +4636,11 @@ button.explorer-card-link {
     grid-template-columns: minmax(0, 1fr) 44px;
     gap: 10px;
     padding: 16px 16px 12px;
+  }
+
+  .explorer-sort {
+    grid-column: 1 / -1;
+    min-height: 44px;
   }
 
   .explorer-refresh {

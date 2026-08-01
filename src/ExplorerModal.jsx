@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  EXPLORER_SORTS,
   defaultExplorerStatus,
   explorerSports,
   fetchExplorerItems,
@@ -26,7 +27,7 @@ import {
   shouldShowExplorerSkeleton,
 } from "./explorer.js";
 
-const STATUS_FILTERS = ["All", "live", "upcoming", "ended"];
+const STATUS_FILTERS = ["All", "live", "upcoming", "listed", "ended"];
 
 export default function ExplorerModal({ initialStatus = "All", onClose, onEnterTournament, onSelectTournament, open }) {
   const [initialCachedItems] = useState(() => readCachedExplorerItems());
@@ -35,6 +36,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
   const [loaded, setLoaded] = useState(() => initialCachedItems.length > 0);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("volume24h");
   const [sport, setSport] = useState("All");
   const [status, setStatus] = useState(() => defaultExplorerStatus(initialStatus));
   const [expandedId, setExpandedId] = useState("");
@@ -51,8 +53,8 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
 
   const sports = useMemo(() => explorerSports(items), [items]);
   const visibleItems = useMemo(
-    () => filterExplorerItems(items, { query, sport, status }),
-    [items, query, sport, status],
+    () => filterExplorerItems(items, { query, sort, sport, status }),
+    [items, query, sort, sport, status],
   );
   const showInitialSkeleton = shouldShowExplorerSkeleton({ open, loaded, error, loading });
 
@@ -249,6 +251,15 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
               value={query}
             />
           </label>
+          <label className="explorer-sort">
+            <span className="sr-only">Sort Explorer tournaments</span>
+            <select onChange={(event) => setSort(event.target.value)} value={sort}>
+              {EXPLORER_SORTS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} />
+          </label>
           <button className="explorer-refresh" disabled={loading} onClick={() => load({ refresh: true })} type="button">
             <RefreshCw className={loading ? "is-spinning" : ""} size={16} />
             <span>Refresh</span>
@@ -289,8 +300,8 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
           </div>
           <div className="explorer-filter-summary">
             <b>{showInitialSkeleton ? "Checking catalog" : `${visibleItems.length} ${visibleItems.length === 1 ? "competition" : "competitions"}`}</b>
-            {query || sport !== "All" || status !== "All" ? (
-              <button onClick={() => { setQuery(""); setSport("All"); setStatus("All"); }} type="button">Clear filters</button>
+            {query || sport !== "All" || status !== "All" || sort !== "volume24h" ? (
+              <button onClick={() => { setQuery(""); setSport("All"); setStatus("All"); setSort("volume24h"); }} type="button">Clear filters</button>
             ) : null}
           </div>
         </div>
@@ -379,7 +390,7 @@ function ExplorerCard({
   const isEnded = item.status === "ended";
   const showSchedule = !isEnded && expanded;
   const hasStats = Boolean(item.format || item.entryCount > 0 || prize);
-  const dateCaption = isEnded ? "Final event" : item.status === "live" ? "In progress" : "Next event";
+  const dateCaption = isEnded ? "Final event" : item.status === "live" ? "In progress" : item.status === "listed" ? "Listed" : "Next event";
 
   return (
     <article className={`explorer-card ${item.status} ${showSchedule ? "expanded" : ""}`}>
@@ -401,7 +412,7 @@ function ExplorerCard({
             <CalendarDays size={17} />
             <div>
               <small>{dateCaption}</small>
-              {dateLabel ? <time dateTime={item.startTime}>{dateLabel}</time> : <span>No date from Bento</span>}
+              {dateLabel ? <time dateTime={item.startTime}>{dateLabel}</time> : <span>{item.status === "listed" ? "Awaiting schedule" : "No date from Bento"}</span>}
             </div>
           </div>
         </div>

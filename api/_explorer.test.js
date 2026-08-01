@@ -89,7 +89,7 @@ test("curates real football and F1 records without test or canceled data", async
   assert.match(items[1].searchText, /france england/i);
 });
 
-test("uses authoritative dates to exclude stale live records", async () => {
+test("keeps stale live rows listed instead of hiding Bento tournaments", async () => {
   const stale = {
     ...completedFootball,
     id: "stale-live",
@@ -111,7 +111,7 @@ test("uses authoritative dates to exclude stale live records", async () => {
     now: NOW,
   });
 
-  assert.deepEqual(items, []);
+  assert.deepEqual(items.map((item) => [item.id, item.status, item.startTime]), [["stale-live", "live", null]]);
 });
 
 test("normalizes the next football stage from wrapped tournament details", async () => {
@@ -154,7 +154,7 @@ test("normalizes the next football stage from wrapped tournament details", async
   assert.deepEqual(items[0].nextEvent.teams, ["Japan", "Morocco"]);
 });
 
-test("omits active records when enrichment fails but keeps completed records read only", async () => {
+test("keeps active records listed when enrichment fails", async () => {
   const items = await buildExplorerCatalog({
     tournaments: [
       { ...completedFootball, id: "active", name: "Active Cup", status: "LIVE" },
@@ -167,10 +167,10 @@ test("omits active records when enrichment fails but keeps completed records rea
     now: NOW,
   });
 
-  assert.deepEqual(items.map((item) => [item.id, item.status]), [["world-cup", "ended"]]);
+  assert.deepEqual(items.map((item) => [item.id, item.status]), [["active", "live"], ["world-cup", "ended"]]);
 });
 
-test("collapses same-league aliases and keeps the most recent ended competition", async () => {
+test("keeps same-league aliases so Explorer shows every Bento tournament", async () => {
   const duplicate = { ...completedFootball, id: "world-cup-copy" };
   const laterEdition = { ...completedFootball, id: "world-cup-later", name: "FIFA World Cup Tournament" };
 
@@ -189,7 +189,7 @@ test("collapses same-league aliases and keeps the most recent ended competition"
     now: NOW,
   });
 
-  assert.deepEqual(items.map((item) => item.id), ["world-cup-later"]);
+  assert.deepEqual(items.map((item) => item.id), ["world-cup-later", "world-cup", "world-cup-copy"]);
 });
 
 test("orders live competitions before upcoming and ended records", async () => {

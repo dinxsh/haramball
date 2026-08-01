@@ -1,4 +1,24 @@
-const PRIORITY_SPORTS = ["Football", "Formula 1"];
+export const BENTO_SPORT_FILTERS = [
+  "All",
+  "Cricket",
+  "Football",
+  "Basketball",
+  "Hockey",
+  "Formula 1",
+  "American Football",
+  "Baseball",
+  "Tennis",
+  "Esports",
+  "Rugby",
+];
+
+export const EXPLORER_SORTS = [
+  { value: "volume24h", label: "24hr volume" },
+  { value: "startTime", label: "Start time" },
+  { value: "status", label: "Status" },
+  { value: "name", label: "Name" },
+];
+
 const TOKEN_DECIMALS = 18n;
 const EXPLORER_SESSION_CACHE_KEY = "haramball-explorer-items-v1";
 const TOURNAMENT_DETAIL_SESSION_CACHE_PREFIX = "haramball-tournament-detail-v1:";
@@ -206,22 +226,21 @@ async function requestExplorerItems() {
   return Array.isArray(payload?.items) ? payload.items : [];
 }
 
-export function filterExplorerItems(items = [], { query = "", sport = "All", status = "All" } = {}) {
+export function filterExplorerItems(items = [], { query = "", sort = "volume24h", sport = "All", status = "All" } = {}) {
   const needle = String(query).trim().toLowerCase();
 
   return items
-    .filter((item) => sport === "All" || item.sport === sport)
+    .filter((item) => sport === "All" || item.sport === sport || item.category === sport)
     .filter((item) => status === "All" || item.status === status)
-    .filter((item) => !needle || String(item.searchText || [item.name, item.sport, item.league].join(" ")).toLowerCase().includes(needle))
-    .sort(compareExplorerItems);
+    .filter((item) => !needle || String(item.searchText || [item.name, item.sport, item.category, item.league].join(" ")).toLowerCase().includes(needle))
+    .sort((left, right) => compareExplorerItems(left, right, sort));
 }
 
 export function explorerSports(items = []) {
-  const sports = [...new Set(items.map((item) => item.sport).filter(Boolean))];
+  const sports = [...new Set(items.flatMap((item) => [item.sport, item.category]).filter(Boolean))];
   return [
-    "All",
-    ...PRIORITY_SPORTS.filter((sport) => sports.includes(sport)),
-    ...sports.filter((sport) => !PRIORITY_SPORTS.includes(sport)).sort((left, right) => left.localeCompare(right)),
+    ...BENTO_SPORT_FILTERS,
+    ...sports.filter((sport) => !BENTO_SPORT_FILTERS.includes(sport)).sort((left, right) => left.localeCompare(right)),
   ];
 }
 
@@ -255,9 +274,15 @@ function dateValue(value) {
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
 }
 
-function compareExplorerItems(left, right) {
+function compareExplorerItems(left, right, sort = "volume24h") {
+  if (sort === "volume24h") {
+    const volumeDifference = Number(right.volume24h || right.volume || 0) - Number(left.volume24h || left.volume || 0);
+    if (volumeDifference) return volumeDifference;
+  }
+  if (sort === "name") return String(left.name).localeCompare(String(right.name));
+
   const statusDifference = statusValue(left.status) - statusValue(right.status);
-  if (statusDifference) return statusDifference;
+  if (statusDifference && sort !== "startTime") return statusDifference;
 
   const dateDifference = left.status === "ended"
     ? dateValue(right.endTime || right.startTime) - dateValue(left.endTime || left.startTime)
@@ -266,5 +291,5 @@ function compareExplorerItems(left, right) {
 }
 
 function statusValue(status) {
-  return { live: 0, upcoming: 1, ended: 2 }[status] ?? 3;
+  return { live: 0, upcoming: 1, listed: 2, ended: 3 }[status] ?? 4;
 }

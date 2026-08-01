@@ -52,31 +52,13 @@ export async function buildExplorerCatalog({
         ? await loadF1Rounds(row.id)
         : await loadTournament(row.id);
     } catch {
-      if (!TERMINAL_STATUSES.has(normalizeStatus(row.status))) return null;
+      enrichment = null;
     }
 
     return normalizeExplorerTournament(row, enrichment, now);
   });
 
-  return uniqueExplorerItems(items.filter(Boolean));
-}
-
-function uniqueExplorerItems(items) {
-  const seen = new Set();
-
-  return [...items].sort(compareExplorerItems).filter((item) => {
-    const key = competitionKey(item);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function competitionKey(item) {
-  const competition = item.league || item.name;
-  return [item.sport, competition]
-    .map((value) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, ""))
-    .join("|");
+  return items.filter(Boolean).sort(compareExplorerItems);
 }
 
 function compareExplorerItems(left, right) {
@@ -99,19 +81,19 @@ export function normalizeExplorerTournament(row = {}, enrichment, now = Date.now
     ? f1Schedule(enrichment, now, terminal)
     : tournamentSchedule(enrichment, now, terminal);
 
-  if (!terminal && !schedule) return null;
-
-  const status = terminal ? "ended" : lifecycleFromSchedule(schedule, now);
-  if (!status) return null;
+  const status = terminal ? "ended" : lifecycleFromSchedule(schedule, now) || lifecycleFromSourceStatus(sourceStatus) || "listed";
 
   const nextEvent = schedule?.nextEvent || null;
+  const sport = displaySport(row.sport || row.category || row.gameType);
+  const category = displaySport(row.category || row.sport || row.gameType);
   const searchText = [
     row.name,
     row.description,
-    row.sport,
+    sport,
     row.league,
-    row.category,
+    category,
     row.format,
+    row.gameType,
     ...(schedule?.searchValues || []),
   ].filter(Boolean).join(" ");
 
@@ -120,7 +102,8 @@ export function normalizeExplorerTournament(row = {}, enrichment, now = Date.now
     slug: tournamentSlug(row),
     kind,
     name: String(row.name).trim(),
-    sport: String(row.sport).trim(),
+    sport,
+    category,
     league: String(row.league || "").trim(),
     status,
     startTime: schedule?.startTime || null,
@@ -130,6 +113,8 @@ export function normalizeExplorerTournament(row = {}, enrichment, now = Date.now
     entryCount: finiteNumber(row.entryCount),
     prizePool: valueOrNull(row.prizePool),
     stakeAsset: String(row.stakeAsset || row.config?.stakeAsset || "").trim(),
+    volume24h: finiteNumber(row.volume24h ?? row.volume24hr ?? row.volume24H ?? row["24hrVolume"] ?? row.volume_24h),
+    volume: finiteNumber(row.volume ?? row.totalVolume ?? row.total_volume),
     searchText,
     sourceStatus,
   };
@@ -240,6 +225,13 @@ function lifecycleFromSchedule(schedule, now) {
   return null;
 }
 
+function lifecycleFromSourceStatus(value) {
+  const status = normalizeStatus(value);
+  if (["active", "live", "open", "running"].includes(status)) return "live";
+  if (["upcoming", "created", "draft", "scheduled", "pending"].includes(status)) return "upcoming";
+  return "";
+}
+
 async function mapWithConcurrency(values, concurrency, mapper) {
   const results = new Array(values.length);
   let cursor = 0;
@@ -258,6 +250,16 @@ async function mapWithConcurrency(values, concurrency, mapper) {
 function isF1(row) {
   return String(row.gameType || "").toUpperCase() === "F1_GRID_PREDICTOR"
     || /^formula\s*1$/i.test(String(row.sport || ""));
+}
+
+function displaySport(value) {
+  const raw = String(value || "").trim();
+  const normalized = raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (!normalized) return "";
+  if (/formula\s*1|f1/.test(normalized)) return "Formula 1";
+  if (/american football|nfl/.test(normalized)) return "American Football";
+  if (/e\s*sports|esports/.test(normalized)) return "Esports";
+  return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function normalizeStatus(value) {
