@@ -113,7 +113,7 @@ function MarketApp() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState([]);
   const [profileModalOpen, setProfileModalOpen] = useState(() => !localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY));
-  const [explorerOpen, setExplorerOpen] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(true);
   const [profileMode, setProfileMode] = useState("onboarding");
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || "classic");
   const [toast, setToast] = useState("");
