@@ -145,6 +145,13 @@ function MarketApp() {
   const progressPercent = Math.min(100, Math.max(0, (elapsedSeconds / ROUND_SECONDS) * 100));
   const marketTitle = market?.title || (readiness.configured ? "No match markets returned" : "Market board needs setup");
   const endedMarketTitle = marketEnded ? finalResult.title : marketTitle;
+  const marketBoardLoading = marketsLoading && !market;
+  const displayedMarketTitle = marketBoardLoading ? "Opening Explorer" : endedMarketTitle;
+  const displayedMarketBody = marketBoardLoading
+    ? "The verified tournament calendar is opening while the match board refreshes."
+    : marketEnded
+      ? finalResult.detail
+      : "One random side is chosen for a strict 15-second window.";
   const marketBody = market
     ? "Preview your ticket, then lock it in."
     : readiness.configured
@@ -183,6 +190,10 @@ function MarketApp() {
     window.requestAnimationFrame(() => explorerButtonRef.current?.focus());
   };
   const openLiveExplore = () => setExplorerOpen(true);
+
+  useEffect(() => {
+    setExplorerOpen(true);
+  }, []);
 
   useEffect(() => {
     if (token) sessionStorage.setItem(SESSION_TOKEN_STORAGE_KEY, token);
@@ -860,16 +871,14 @@ function MarketApp() {
             </nav>
 
             <div className="scoreline">
-              {marketsLoading ? (
-                <HeroSkeleton />
-              ) : market ? (
+              {market ? (
                 <>
                   <Team name={fixture.home} />
                   <div className="score">vs</div>
                   <Team name={fixture.away} align="right" />
                 </>
               ) : (
-                <div className="hero-empty-state">No live market data</div>
+                <div className="hero-empty-state">{marketBoardLoading ? "Opening Explorer" : "No live market data"}</div>
               )}
             </div>
             {market ? (
@@ -900,12 +909,10 @@ function MarketApp() {
                 </div>
               </div>
 
-              {marketsLoading ? <MarketQuestionSkeleton /> : (
-                <div className="question-block">
-                  <h1>{endedMarketTitle}</h1>
-                  <p>{marketEnded ? finalResult.detail : "One random side is chosen for a strict 15-second window."}</p>
-                </div>
-              )}
+              <div className="question-block">
+                <h1>{displayedMarketTitle}</h1>
+                <p>{displayedMarketBody}</p>
+              </div>
 
               {!marketEnded ? (
                 <>
@@ -1024,7 +1031,7 @@ function MarketApp() {
             <article className="status-card" key={card.label}>
               <span className="status-icon">{card.icon}</span>
               <small>{card.label}</small>
-              <strong>{marketsLoading && card.label === "Match Board" ? <SkeletonLine width="78px" /> : card.value}</strong>
+              <strong>{card.value}</strong>
               <p>{card.body}</p>
             </article>
           ))}
@@ -1517,32 +1524,6 @@ function MarketIntelCard({ analytics, error, shares }) {
         </span>
       </div>
     </article>
-  );
-}
-
-function HeroSkeleton() {
-  return (
-    <>
-      <div className="team">
-        <SkeletonLine width="82%" dark tall />
-      </div>
-      <div className="score">
-        <SkeletonLine width="78px" />
-      </div>
-      <div className="team right">
-        <SkeletonLine width="82%" dark tall />
-      </div>
-    </>
-  );
-}
-
-function MarketQuestionSkeleton() {
-  return (
-    <div className="question-block">
-      <SkeletonLine width="94%" tall />
-      <SkeletonLine width="74%" tall />
-      <SkeletonLine width="82%" small />
-    </div>
   );
 }
 
