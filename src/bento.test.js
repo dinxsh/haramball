@@ -169,6 +169,16 @@ test("extracts a trailing parenthesized matchup for the hero", () => {
   );
 });
 
+test("falls back safely when a Bento market is null", () => {
+  assert.deepEqual(fixtureFromMarket(null), {
+    home: "Team X",
+    away: "Team Y",
+    label: "Team X vs Team Y",
+    source: "option-fallback",
+    inferred: true,
+  });
+});
+
 test("extracts Bento fixture aliases from raw market payloads", () => {
   assert.deepEqual(
     fixtureFromMarket({

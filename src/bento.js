@@ -63,7 +63,7 @@ export function fixtureFromMarket(market) {
 }
 
 function fixtureFromApiMarket(market = {}) {
-  const raw = market.raw || {};
+  const raw = market?.raw || {};
   const teams = raw.teams || raw.match?.teams || raw.fixture?.teams || raw.game?.teams;
   const home = labelFromFixtureValue(
     raw.home ||
