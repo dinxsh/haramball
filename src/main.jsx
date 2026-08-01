@@ -757,20 +757,26 @@ function MarketApp() {
     {
       icon: <Clock3 size={18} />,
       label: "Match Board",
-      value: marketsLoading ? "Loading" : `${markets.length} markets`,
-      body: "Match markets load before you connect a wallet.",
+      value: marketEnded ? "Explore" : marketsLoading ? "Loading" : `${markets.length} markets`,
+      body: marketEnded
+        ? "Use Explore to jump into active tournaments and upcoming race weekends."
+        : "Match markets load before you connect a wallet.",
     },
     {
       icon: <Gauge size={18} />,
       label: "Ticket",
-      value: estimate ? "Ready" : "Required",
-      body: "Preview shares and price before locking a pick.",
+      value: marketEnded ? "Tournaments" : estimate ? "Ready" : "Required",
+      body: marketEnded
+        ? "Enter verified Bento competitions from the calendar without leaving home."
+        : "Preview shares and price before locking a pick.",
     },
     {
       icon: <ShieldCheck size={18} />,
       label: "Result",
-      value: "Tracked",
-      body: "Your account refreshes after every locked ticket.",
+      value: marketEnded ? "History" : "Tracked",
+      body: marketEnded
+        ? "Final markets stay readable while the product keeps the next actions up front."
+        : "Your account refreshes after every locked ticket.",
     },
   ];
 
@@ -1013,22 +1019,16 @@ function MarketApp() {
       </section>
 
       <aside className="desktop-panel">
-        {marketEnded ? (
-          <section className="intro-panel ended-desktop-panel">
-            <div className="eyebrow"><Lock size={16} /> Final</div>
-            <h2>{finalResult.title}</h2>
-            {finalResult.score ? <p>Final score {finalResult.score}</p> : null}
-          </section>
-        ) : (
-          <>
         <section className="intro-panel">
           <div className="eyebrow">
             <Flame size={16} />
-            Match market rush
+            {marketEnded ? "Product mode" : "Match market rush"}
           </div>
-          <h2>Pick the moment before the stadium does.</h2>
+          <h2>{marketEnded ? "Find the next tournament to play." : "Pick the moment before the stadium does."}</h2>
           <p>
-            haramball.xyz is a fast market board for quick YES/NO calls, clean tickets, and live account refreshes.
+            {marketEnded
+              ? "haramball.xyz keeps completed markets out of the way and opens the verified Bento calendar for live tournaments, clean entry, and account refreshes."
+              : "haramball.xyz is a fast market board for quick YES/NO calls, clean tickets, and live account refreshes."}
           </p>
         </section>
 
@@ -1060,8 +1060,6 @@ function MarketApp() {
         </section>
 
         <ProfileActivityCard activeProfile={activeProfile} feed={feed} loading={profilesLoading} profiles={leaderboard} wide />
-          </>
-        )}
       </aside>
 
       {profileModalOpen && !marketEnded ? (

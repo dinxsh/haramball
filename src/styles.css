@@ -2258,10 +2258,6 @@ button:disabled {
   margin: 20px 0 0;
 }
 
-.ended-desktop-panel .eyebrow {
-  background: var(--yellow);
-}
-
 .status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
