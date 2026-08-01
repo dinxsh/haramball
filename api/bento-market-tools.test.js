@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createBentoHandler,
   createBentoCreateMarketHandler,
+  createBentoFeedsHandler,
   createBentoMarketAnalyticsHandler,
   createBentoSellEstimateHandler,
   createBentoSellHandler,
@@ -106,6 +107,19 @@ test("create market route forwards bearer token and draft body", async () => {
     category: "Football",
   });
   assert.deepEqual(JSON.parse(response.body), { creation: { kind: "accepted" } });
+});
+
+test("feeds route forwards sport, league, and limit filters", async () => {
+  const response = responseRecorder();
+  let received;
+  await createBentoFeedsHandler(async (options) => {
+    received = options;
+    return { feeds: { fixtures: [{ id: "fixture-1" }] } };
+  })({ headers: {}, url: "/api/bento?route=feeds&sport=football&league=EPL&limit=12" }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(received, { sport: "football", league: "EPL", limit: "12" });
+  assert.deepEqual(JSON.parse(response.body), { feeds: { fixtures: [{ id: "fixture-1" }] } });
 });
 
 function responseRecorder() {

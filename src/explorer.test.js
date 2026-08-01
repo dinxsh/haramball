@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as explorerModule from "./explorer.js";
-import { explorerSports, filterExplorerItems, formatExplorerPrize } from "./explorer.js";
+import {
+  buildLiveCentreRows,
+  explorerSports,
+  filterExplorerItems,
+  filterLiveCentreRows,
+  formatExplorerPrize,
+  liveCentreStats,
+} from "./explorer.js";
 
 const items = [
   {
@@ -135,6 +142,51 @@ test("shows explorer skeleton immediately while an opened modal has not loaded",
 test("formats Bento base-unit prize pools without floating point loss", () => {
   assert.equal(formatExplorerPrize("25000000000000000000", "usdc"), "25 USDC");
   assert.equal(formatExplorerPrize(null, "credits"), "");
+});
+
+test("builds Live Centre rows from Bento catalog and feed slices", () => {
+  const rows = buildLiveCentreRows(items, {
+    fixtures: {
+      data: [
+        {
+          id: "fixture-1",
+          title: "Arsenal vs Chelsea",
+          sport: "Football",
+          leagueName: "Premier League",
+          status: "live",
+          startTime: "2026-08-02T15:00:00.000Z",
+        },
+      ],
+    },
+  });
+
+  assert.equal(rows.some((row) => row.id === "fixture-1" && row.source === "bento-fixture"), true);
+  assert.deepEqual(liveCentreStats(rows), { matches: 5, live: 2, upcoming: 2, ended: 1, sports: 3 });
+});
+
+test("filters Live Centre by sport, league aliases, results, and search", () => {
+  const rows = buildLiveCentreRows(items, {
+    fixtures: {
+      data: [
+        {
+          id: "prem-live",
+          title: "Arsenal vs Chelsea",
+          sport: "Football",
+          leagueName: "Premier League",
+          status: "live",
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(
+    filterLiveCentreRows(rows, { sport: "Football", league: "EPL", section: "matches", query: "arsenal" }).map((row) => row.id),
+    ["prem-live"],
+  );
+  assert.deepEqual(
+    filterLiveCentreRows(rows, { sport: "Football", league: "All Live", section: "results" }).map((row) => row.id),
+    ["football-ended"],
+  );
 });
 
 test("prefetch shares one request with modal loading and refresh bypasses the cache", async () => {

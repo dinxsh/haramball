@@ -32,6 +32,7 @@ import {
   estimateBentoBet,
   exchangeBentoWalletCode,
   extractEstimate,
+  fetchBentoFeeds,
   fetchBentoMarketAnalytics,
   fetchBentoMarkets,
   fetchBentoPortfolio,
@@ -61,7 +62,17 @@ import {
 } from "./bento";
 import ExplorerModal from "./ExplorerModal.jsx";
 import TournamentPage, { TournamentDialog } from "./TournamentPage.jsx";
-import { tournamentSlugFromPath } from "./explorer.js";
+import {
+  buildLiveCentreRows,
+  fetchExplorerItems,
+  filterLiveCentreRows,
+  formatExplorerDate,
+  formatExplorerPrize,
+  LIVE_CENTRE_LEAGUES,
+  LIVE_CENTRE_SPORTS,
+  liveCentreStats,
+  tournamentSlugFromPath,
+} from "./explorer.js";
 import "./styles.css";
 
 const formatMoney = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(2) : "0.00");
@@ -407,6 +418,13 @@ function MarketApp() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const invite = url.searchParams.get("invite");
+    const create = url.searchParams.get("create");
+    if (create === "market") {
+      setMarketCreatorOpen(true);
+      setExplorerOpen(false);
+      url.searchParams.delete("create");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
     if (!invite) return;
     setGroupDraft((draft) => ({ ...draft, code: invite.toUpperCase() }));
     setGroupMode("join");
@@ -1070,6 +1088,10 @@ function MarketApp() {
                       <Trophy size={15} />
                       Leaderboard
                     </a>
+                    <a href="/live">
+                      <Flame size={15} />
+                      Live Centre
+                    </a>
                     <button onClick={() => setTheme((value) => value === "classic" ? "night" : "classic")} type="button">
                       <Palette size={15} />
                       Theme: {theme === "classic" ? "Classic" : "Night"}
@@ -1342,7 +1364,259 @@ function App() {
   const tournamentSlug = tournamentSlugFromPath(window.location.pathname);
   if (window.location.pathname === "/portfolio") return <PortfolioPage />;
   if (window.location.pathname === "/leaderboard") return <LeaderboardPage />;
+  if (window.location.pathname === "/live" || window.location.pathname === "/feeds") return <LiveCentrePage />;
   return tournamentSlug ? <TournamentPage slug={tournamentSlug} /> : <MarketApp />;
+}
+
+function LiveCentrePage() {
+  const [catalog, setCatalog] = useState([]);
+  const [feeds, setFeeds] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [tab, setTab] = useState("stats");
+  const [sport, setSport] = useState("Football");
+  const [league, setLeague] = useState("All Live");
+  const [section, setSection] = useState("matches");
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => buildLiveCentreRows(catalog, feeds), [catalog, feeds]);
+  const filteredRows = useMemo(
+    () => filterLiveCentreRows(rows, { league, query, section, sport }),
+    [league, query, rows, section, sport],
+  );
+  const stats = useMemo(() => liveCentreStats(rows), [rows]);
+  const standings = useMemo(() => liveCentreStandings(filteredRows), [filteredRows]);
+  const newsRows = useMemo(() => liveCentreNewsRows(rows, feeds), [feeds, rows]);
+
+  const loadLiveCentre = async ({ refresh = false } = {}) => {
+    setLoading(true);
+    setError("");
+    try {
+      const [nextCatalog, nextFeeds] = await Promise.all([
+        fetchExplorerItems({ refresh }).catch((nextError) => {
+          setError(nextError.message || "Bento catalog failed to load");
+          return [];
+        }),
+        fetchBentoFeeds({ sport, league: league === "All Live" ? "" : league }).catch(() => ({})),
+      ]);
+      setCatalog(nextCatalog);
+      setFeeds(nextFeeds);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveCentre();
+  }, [sport, league]);
+
+  return (
+    <main className="live-centre-shell">
+      <header className="live-centre-header">
+        <a className="back-link" href="/"><ArrowLeft size={16} /> haramball.xyz</a>
+        <h1>Live Centre</h1>
+        <div className="live-centre-tabs">
+          {["stats", "live", "news"].map((item) => (
+            <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)} type="button">
+              {titleCase(item)}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <section className="live-centre-controls">
+        <div className="live-sport-row">
+          {LIVE_CENTRE_SPORTS.map((item) => (
+            <button
+              className={sport === item ? "active" : ""}
+              disabled={item === "Tennis"}
+              key={item}
+              onClick={() => setSport(item)}
+              type="button"
+            >
+              {sportIconLabel(item)}
+              <span>{sportDisplayLabel(item)}</span>
+              {item === "Tennis" ? <small>Soon</small> : null}
+            </button>
+          ))}
+        </div>
+
+        <div className="live-league-row">
+          <label className="live-centre-search">
+            <Compass size={17} />
+            <input onChange={(event) => setQuery(event.target.value)} placeholder="Search matches, leagues, teams..." value={query} />
+          </label>
+          {LIVE_CENTRE_LEAGUES.map((item) => (
+            <button className={league === item ? "active" : ""} key={item} onClick={() => setLeague(item)} type="button">
+              {item === "All Live" ? <span className="live-dot" /> : null}
+              {item}
+            </button>
+          ))}
+        </div>
+
+        <a className="live-create-tournament" href="/?create=market">
+          <span>{sportIconLabel(sport)}</span>
+          <strong>Create Tournament</strong>
+          <small>Build from Bento fixtures</small>
+          <Plus size={18} />
+        </a>
+      </section>
+
+      {tab === "stats" ? (
+        <section className="live-stat-grid">
+          <LiveStatCard icon={<Gauge size={20} />} label="Total feed items" value={stats.matches} />
+          <LiveStatCard icon={<Flame size={20} />} label="Live now" value={stats.live} />
+          <LiveStatCard icon={<Clock3 size={20} />} label="Upcoming" value={stats.upcoming} />
+          <LiveStatCard icon={<Trophy size={20} />} label="Sports covered" value={stats.sports} />
+        </section>
+      ) : null}
+
+      {tab === "news" ? (
+        <section className="live-news-list">
+          {newsRows.length ? newsRows.map((item) => (
+            <article className="live-news-card" key={item.id}>
+              <small>{item.source}</small>
+              <strong>{item.title}</strong>
+              <span>{item.body}</span>
+            </article>
+          )) : <div className="live-empty-state">No Bento news slice is available for this filter yet.</div>}
+        </section>
+      ) : (
+        <section className="live-board-card">
+          <div className="live-board-tabs">
+            {["matches", "standings", "results"].map((item) => (
+              <button className={section === item ? "active" : ""} key={item} onClick={() => setSection(item)} type="button">
+                {titleCase(item)}
+              </button>
+            ))}
+            <button className="live-refresh" disabled={loading} onClick={() => loadLiveCentre({ refresh: true })} type="button">
+              <Flame size={15} />
+              Refresh
+            </button>
+          </div>
+
+          {loading ? (
+            <LiveCentreSkeleton />
+          ) : error && !rows.length ? (
+            <div className="live-empty-state">{error}</div>
+          ) : section === "standings" ? (
+            <div className="live-standings-list">
+              {standings.length ? standings.map((row) => <LiveStandingRow key={`${row.league}-${row.sport}`} row={row} />) : <div className="live-empty-state">No standings for this filter yet.</div>}
+            </div>
+          ) : filteredRows.length ? (
+            <div className="live-match-list">
+              {filteredRows.map((row) => <LiveMatchCard key={row.id} row={row} />)}
+            </div>
+          ) : (
+            <div className="live-empty-state">No Bento events match this filter yet.</div>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}
+
+function LiveStatCard({ icon, label, value }) {
+  return (
+    <article className="live-stat-card">
+      {icon}
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function LiveMatchCard({ row }) {
+  return (
+    <article className="live-match-card">
+      <div>
+        <span className={`live-status-pill ${row.status}`}>{row.status}</span>
+        <strong>{row.title}</strong>
+        <small>{row.subtitle || row.league}</small>
+      </div>
+      <div className="live-match-meta">
+        <span>{row.league}</span>
+        <span>{formatExplorerDate(row.startsAt) || "Time TBA"}</span>
+        {row.slug ? <a href={`/tournaments/${encodeURIComponent(row.slug)}`}>Enter</a> : null}
+      </div>
+      <div className="live-match-stats">
+        <b>{row.entries || 0}</b>
+        <span>entries</span>
+        <b>{formatExplorerPrize(row.pool, "usdc") || "Bento"}</b>
+        <span>pool</span>
+      </div>
+    </article>
+  );
+}
+
+function LiveStandingRow({ row }) {
+  return (
+    <article className="live-standing-row">
+      <span>{row.rank}</span>
+      <strong>{row.league}</strong>
+      <small>{row.sport}</small>
+      <b>{row.live} live</b>
+      <b>{row.total} events</b>
+    </article>
+  );
+}
+
+function LiveCentreSkeleton() {
+  return (
+    <div className="live-match-list">
+      {Array.from({ length: 3 }, (_, index) => (
+        <article className="live-match-card skeleton" key={`live-skeleton-${index}`}>
+          <SkeletonLine width="42%" />
+          <SkeletonLine width="72%" />
+          <SkeletonLine width="28%" />
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function liveCentreStandings(rows = []) {
+  const byLeague = new Map();
+  for (const row of rows) {
+    const key = `${row.sport}-${row.league}`;
+    const current = byLeague.get(key) || { league: row.league || "Bento", sport: row.sport, live: 0, total: 0 };
+    current.total += 1;
+    if (row.status === "live") current.live += 1;
+    byLeague.set(key, current);
+  }
+  return [...byLeague.values()].sort((left, right) => right.live - left.live || right.total - left.total)
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+function liveCentreNewsRows(rows = [], feeds = {}) {
+  const feedNews = listFrom(feeds.news?.data || feeds.news?.items || feeds.news).map((item, index) => ({
+    id: String(item.id || `news-${index}`),
+    title: String(item.title || item.name || "Bento feed update"),
+    body: String(item.summary || item.description || item.body || "Fresh from the Bento feed API."),
+    source: "Bento news",
+  }));
+  if (feedNews.length) return feedNews.slice(0, 8);
+  return rows.slice(0, 8).map((row) => ({
+    id: `catalog-${row.id}`,
+    title: `${row.title} listed`,
+    body: `${row.sport} ${row.status} item available from the Bento tournament feed.`,
+    source: row.source || "Bento catalog",
+  }));
+}
+
+function sportDisplayLabel(value) {
+  return value === "American Football" ? "NFL" : value === "Formula 1" ? "F1" : value;
+}
+
+function sportIconLabel(value) {
+  return ({
+    Football: "F",
+    Cricket: "C",
+    "Formula 1": "F1",
+    "American Football": "NFL",
+    Basketball: "B",
+    Baseball: "MLB",
+    Tennis: "T",
+  })[value] || "B";
 }
 
 function LeaderboardPage() {

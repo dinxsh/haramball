@@ -67,6 +67,364 @@ body::before {
   z-index: 0;
 }
 
+.live-centre-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1152px, calc(100vw - 48px));
+  margin: 0 auto;
+  padding: 18px 0 48px;
+  color: #f8fafc;
+}
+
+.live-centre-header {
+  display: grid;
+  gap: 20px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid rgba(248, 250, 252, 0.18);
+}
+
+.live-centre-header .back-link {
+  justify-self: start;
+}
+
+.live-centre-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.live-centre-tabs,
+.live-sport-row,
+.live-league-row,
+.live-board-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.live-centre-tabs button,
+.live-sport-row button,
+.live-league-row button,
+.live-board-tabs button,
+.live-refresh {
+  min-height: 42px;
+  border: 1px solid rgba(248, 250, 252, 0.18);
+  border-radius: 999px;
+  padding: 0 16px;
+  background: #1e1e20;
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+.live-centre-tabs button.active,
+.live-sport-row button.active,
+.live-league-row button.active,
+.live-board-tabs button.active {
+  border-color: #ff4b2b;
+  background: #ff4b2b;
+  color: #fff;
+}
+
+.live-sport-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.live-sport-row button::first-letter,
+.live-create-tournament > span {
+  color: #050507;
+}
+
+.live-sport-row button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.live-sport-row small {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #2a2a2c;
+  color: #94a3b8;
+}
+
+.live-centre-controls {
+  display: grid;
+  gap: 14px;
+  padding: 16px 0;
+}
+
+.live-centre-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(360px, 100%);
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: #101012;
+  border: 1px solid rgba(248, 250, 252, 0.14);
+}
+
+.live-centre-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f8fafc;
+  font: inherit;
+  font-weight: 700;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #ff4b2b;
+}
+
+.live-create-tournament {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 70px;
+  border: 1px solid rgba(255, 75, 43, 0.55);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(135deg, #202024, #171719);
+}
+
+.live-create-tournament > span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ff4b2b;
+  font-weight: 900;
+}
+
+.live-create-tournament small {
+  grid-column: 2;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.live-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 8px 0 18px;
+}
+
+.live-stat-card,
+.live-board-card,
+.live-news-card {
+  border: 1px solid rgba(248, 250, 252, 0.14);
+  border-radius: 12px;
+  background: #1d1d1f;
+}
+
+.live-stat-card {
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px;
+}
+
+.live-stat-card svg {
+  color: #33d69f;
+}
+
+.live-stat-card span {
+  color: #aeb8c5;
+  font-weight: 800;
+}
+
+.live-stat-card strong {
+  font-size: 2.2rem;
+}
+
+.live-board-card {
+  overflow: hidden;
+}
+
+.live-board-tabs {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(248, 250, 252, 0.12);
+}
+
+.live-refresh {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-match-list,
+.live-standings-list,
+.live-news-list {
+  display: grid;
+  gap: 0;
+}
+
+.live-match-card,
+.live-standing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.9fr) 150px;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(248, 250, 252, 0.08);
+}
+
+.live-match-card:last-child,
+.live-standing-row:last-child {
+  border-bottom: 0;
+}
+
+.live-match-card strong,
+.live-news-card strong,
+.live-standing-row strong {
+  display: block;
+  margin-top: 8px;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.live-match-card small,
+.live-match-meta,
+.live-news-card span,
+.live-standing-row small {
+  color: #aeb8c5;
+  font-weight: 700;
+}
+
+.live-status-pill {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid rgba(248, 250, 252, 0.18);
+  border-radius: 999px;
+  padding: 4px 9px;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-status-pill.live {
+  background: #18a66e;
+}
+
+.live-status-pill.upcoming,
+.live-status-pill.listed {
+  background: #2bb8ec;
+  color: #050507;
+}
+
+.live-status-pill.ended {
+  background: #6b7280;
+}
+
+.live-match-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.live-match-meta a {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: #ffd447;
+  color: #050507;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.live-match-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 8px;
+  text-align: right;
+}
+
+.live-match-stats b {
+  color: #fff;
+}
+
+.live-match-stats span {
+  color: #94a3b8;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.live-standing-row {
+  grid-template-columns: 40px minmax(0, 1fr) 160px 100px 100px;
+}
+
+.live-standing-row > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ffd447;
+  color: #050507;
+  font-weight: 900;
+}
+
+.live-news-list {
+  gap: 12px;
+}
+
+.live-news-card {
+  padding: 18px;
+}
+
+.live-news-card small {
+  color: #33d69f;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-empty-state {
+  padding: 54px 20px;
+  color: #cbd5e1;
+  text-align: center;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .live-centre-shell {
+    width: min(100vw - 20px, 560px);
+  }
+
+  .live-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .live-match-card,
+  .live-standing-row {
+    grid-template-columns: 1fr;
+  }
+
+  .live-match-stats {
+    text-align: left;
+  }
+
+  .live-refresh {
+    margin-left: 0;
+  }
+}
+
 button {
   border: 0;
   cursor: pointer;

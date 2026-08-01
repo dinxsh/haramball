@@ -8,6 +8,7 @@ import {
   fetchBentoMarket,
   fetchBentoMarketAnalytics,
   fetchBentoMarkets,
+  fetchBentoFeeds,
   fetchBentoPortfolio,
   fetchBentoUserShares,
   handleApiError,
@@ -33,6 +34,7 @@ const ROUTES = {
   "sell-estimate": "sell-estimate",
   sell: "sell",
   "create-market": "create-market",
+  feeds: "feeds",
 };
 
 export function createBentoMarketAnalyticsHandler(fetchAnalytics = fetchBentoMarketAnalytics) {
@@ -94,6 +96,21 @@ export function createBentoCreateMarketHandler(createMarket = createBentoMarket)
   };
 }
 
+export function createBentoFeedsHandler(fetchFeeds = fetchBentoFeeds) {
+  return async function bentoFeedsHandler(request, response) {
+    try {
+      const url = new URL(request.url, "http://localhost");
+      sendJson(response, 200, await fetchFeeds({
+        sport: url.searchParams.get("sport") || "football",
+        league: url.searchParams.get("league") || "",
+        limit: url.searchParams.get("limit") || 30,
+      }));
+    } catch (error) {
+      handleApiError(response, error);
+    }
+  };
+}
+
 export function createBentoHandler() {
   return async function bentoHandler(request, response) {
     try {
@@ -141,6 +158,8 @@ export function createBentoHandler() {
           return createBentoSellHandler()(request, response);
         case ROUTES["create-market"]:
           return createBentoCreateMarketHandler()(request, response);
+        case ROUTES.feeds:
+          return createBentoFeedsHandler()(request, response);
         default:
           throw exposedError(404, "Unknown Bento route");
       }

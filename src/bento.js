@@ -22,6 +22,13 @@ export async function fetchBentoMarkets({ page = 1, limit = 20 } = {}) {
   return payload.markets || [];
 }
 
+export async function fetchBentoFeeds({ league = "", limit = 30, sport = "football" } = {}) {
+  const params = new URLSearchParams({ route: "feeds", sport, limit: String(limit) });
+  if (league) params.set("league", league);
+  const payload = await fetchJson(`/api/bento?${params}`);
+  return payload.feeds || {};
+}
+
 export async function fetchBentoMarket(duelId) {
   const payload = await fetchJson(`/api/bento?route=market&duelId=${encodeURIComponent(duelId)}`);
   return payload.market;

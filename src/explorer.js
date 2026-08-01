@@ -244,6 +244,97 @@ export function explorerSports(items = []) {
   ];
 }
 
+export const LIVE_CENTRE_SPORTS = [
+  "Football",
+  "Cricket",
+  "Formula 1",
+  "American Football",
+  "Basketball",
+  "Baseball",
+  "Tennis",
+];
+
+export const LIVE_CENTRE_LEAGUES = [
+  "All Live",
+  "WC",
+  "EPL",
+  "LaLiga",
+  "SerieA",
+  "BL",
+  "L1",
+  "UCL",
+  "UEL",
+  "EFL",
+  "FA",
+  "LL2",
+  "CDR",
+  "SerieB",
+  "CI",
+  "ERE",
+];
+
+const LEAGUE_ALIASES = {
+  WC: ["world cup", "wc"],
+  EPL: ["premier league", "epl"],
+  LaLiga: ["la liga", "laliga"],
+  SerieA: ["serie a", "seriea"],
+  BL: ["bundesliga", "bl"],
+  L1: ["ligue 1", "l1"],
+  UCL: ["champions league", "ucl"],
+  UEL: ["europa league", "uel"],
+  EFL: ["efl", "championship"],
+  FA: ["fa cup"],
+  LL2: ["la liga 2", "laliga2", "ll2"],
+  CDR: ["copa del rey", "cdr"],
+  SerieB: ["serie b", "serieb"],
+  CI: ["coppa italia", "ci"],
+  ERE: ["eredivisie", "ere"],
+};
+
+export function buildLiveCentreRows(items = [], feeds = {}) {
+  const feedRows = [
+    ...feedItemsFrom(feeds.fixtures, "fixture"),
+    ...feedItemsFrom(feeds.calendar, "calendar"),
+    ...feedItemsFrom(feeds.liveFeed, "live"),
+  ];
+  const catalogRows = (Array.isArray(items) ? items : []).map((item) => liveRowFromExplorerItem(item));
+  const byKey = new Map();
+
+  for (const row of [...catalogRows, ...feedRows].filter(Boolean)) {
+    const key = row.slug || row.id || `${row.title}-${row.sport}-${row.startsAt}`;
+    const current = byKey.get(key);
+    byKey.set(key, current ? { ...row, ...current, source: [current.source, row.source].filter(Boolean).join("+") } : row);
+  }
+
+  return [...byKey.values()].sort((left, right) => statusValue(left.status) - statusValue(right.status) || dateValue(left.startsAt) - dateValue(right.startsAt));
+}
+
+export function filterLiveCentreRows(rows = [], { league = "All Live", query = "", section = "matches", sport = "Football" } = {}) {
+  const needle = String(query || "").trim().toLowerCase();
+  const normalizedSport = String(sport || "").toLowerCase();
+
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => !normalizedSport || row.sport.toLowerCase() === normalizedSport || row.category.toLowerCase() === normalizedSport)
+    .filter((row) => league === "All Live" || leagueMatches(row, league))
+    .filter((row) => {
+      if (section === "results") return row.status === "ended";
+      if (section === "standings") return true;
+      return row.status !== "ended";
+    })
+    .filter((row) => !needle || row.searchText.toLowerCase().includes(needle));
+}
+
+export function liveCentreStats(rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  return {
+    matches: list.length,
+    live: list.filter((row) => row.status === "live").length,
+    upcoming: list.filter((row) => row.status === "upcoming" || row.status === "listed").length,
+    ended: list.filter((row) => row.status === "ended").length,
+    sports: new Set(list.map((row) => row.sport).filter(Boolean)).size,
+  };
+}
+
 export function formatExplorerDate(value, { dateOnly = false } = {}) {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return "";
@@ -292,4 +383,86 @@ function compareExplorerItems(left, right, sort = "volume24h") {
 
 function statusValue(status) {
   return { live: 0, upcoming: 1, listed: 2, ended: 3 }[status] ?? 4;
+}
+
+function liveRowFromExplorerItem(item = {}) {
+  const sport = item.sport || item.category || "Football";
+  const league = item.league || leagueFromSearchText(item.searchText) || (sport === "Football" ? "Tournament" : sport);
+  return {
+    id: String(item.id || item.slug || item.name),
+    slug: item.slug,
+    title: String(item.name || "Bento tournament"),
+    subtitle: [league, item.status].filter(Boolean).join(" - "),
+    sport: String(sport),
+    category: String(item.category || sport),
+    league: String(league),
+    status: normalizeLiveStatus(item.status),
+    startsAt: item.startTime || item.nextEventTime || "",
+    entries: Number(item.entries || item.participants || 0) || 0,
+    pool: item.prizePool || item.pool || "",
+    source: "tournament-catalog",
+    searchText: String(item.searchText || [item.name, sport, league, item.category].join(" ")),
+  };
+}
+
+function feedItemsFrom(source, kind) {
+  const rows = listFromFeed(source);
+  return rows.map((item, index) => liveRowFromFeedItem(item, kind, index)).filter(Boolean);
+}
+
+function liveRowFromFeedItem(item = {}, kind = "feed", index = 0) {
+  const title = item.title || item.name || item.fixtureName || item.matchName || item.eventName || item.homeName && item.awayName && `${item.homeName} vs ${item.awayName}`;
+  if (!title) return null;
+  const sport = item.sport || item.sportName || item.category || "Football";
+  const league = item.league || item.leagueName || item.competition || item.tournament || item.section || "";
+  return {
+    id: String(item.id || item.fixtureId || item.marketId || `${kind}-${index}-${title}`),
+    slug: item.slug || item.tournamentSlug || "",
+    title: String(title),
+    subtitle: String(item.subtitle || item.statusText || league || kind),
+    sport: String(sport),
+    category: String(item.category || sport),
+    league: String(league || sport),
+    status: normalizeLiveStatus(item.status || item.state || item.fixtureStatus),
+    startsAt: item.startsAt || item.startTime || item.kickoff || item.date || item.createdAt || "",
+    entries: Number(item.entries || item.participants || 0) || 0,
+    pool: item.pool || item.prizePool || "",
+    source: `bento-${kind}`,
+    searchText: String([title, sport, league, item.subtitle, item.statusText].filter(Boolean).join(" ")),
+    raw: item,
+  };
+}
+
+function listFromFeed(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value.data)) return value.data;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.fixtures)) return value.fixtures;
+  if (Array.isArray(value.matches)) return value.matches;
+  if (Array.isArray(value.events)) return value.events;
+  if (Array.isArray(value.sections)) return value.sections.flatMap(listFromFeed);
+  return [];
+}
+
+function normalizeLiveStatus(value) {
+  const status = String(value || "").toLowerCase();
+  if (/live|running|active|in[-_\s]?play/.test(status)) return "live";
+  if (/end|final|settled|result|complete|closed/.test(status)) return "ended";
+  if (/upcoming|scheduled|future|open|listed/.test(status)) return "upcoming";
+  return "listed";
+}
+
+function leagueMatches(row, league) {
+  const aliases = LEAGUE_ALIASES[league] || [league];
+  const haystack = String([row.league, row.title, row.subtitle, row.searchText].filter(Boolean).join(" ")).toLowerCase();
+  return aliases.some((alias) => haystack.includes(String(alias).toLowerCase()));
+}
+
+function leagueFromSearchText(value = "") {
+  const haystack = String(value).toLowerCase();
+  for (const [league, aliases] of Object.entries(LEAGUE_ALIASES)) {
+    if (aliases.some((alias) => haystack.includes(alias))) return league;
+  }
+  return "";
 }

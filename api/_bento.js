@@ -89,6 +89,29 @@ async function requestBentoExplorer({ now = Date.now() } = {}) {
   return { items };
 }
 
+export async function fetchBentoFeeds({ sport = "football", league = "", limit = 30 } = {}) {
+  const config = requireConfiguredBento();
+  if (!config.tournamentsBaseUrl) {
+    throw httpError(503, "Bento feeds require the tournaments host", true);
+  }
+
+  const query = {
+    sport: String(sport || "football").toLowerCase(),
+    ...(league ? { league } : {}),
+    limit: numberOr(limit, 30),
+  };
+  const [screen, fixtures, standings, calendar, news, liveFeed] = await Promise.all([
+    fetchTournamentFeed(config, "/api/v1/feeds/screen", query),
+    fetchTournamentFeed(config, "/feeds/fixtures", query),
+    fetchTournamentFeed(config, "/feeds/standings", query),
+    fetchTournamentFeed(config, "/feeds/calendar", query),
+    fetchTournamentFeed(config, "/feeds/news", query),
+    fetchTournamentFeed(config, "/bento/home/live-feed", query),
+  ]);
+
+  return { feeds: { screen, fixtures, standings, calendar, news, liveFeed } };
+}
+
 export async function fetchBentoTournament(slug, {
   now = Date.now(),
   leaderboardPage = 1,
@@ -171,6 +194,27 @@ async function requestBentoTournament(slug, {
       leaderboardIsPaged,
     }),
   };
+}
+
+async function fetchTournamentFeed(config, path, query = {}) {
+  const url = new URL(`${config.tournamentsBaseUrl}${path}`);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "x-builder-api-key": config.apiKey,
+      },
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) return { error: payload?.message || payload?.error || `Bento feed returned ${response.status}` };
+    return payload || {};
+  } catch (error) {
+    return { error: error.message || "Bento feed unavailable" };
+  }
 }
 
 export async function fetchBentoTournamentStatus({ slug, token, wallet } = {}) {
