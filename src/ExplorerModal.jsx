@@ -28,7 +28,7 @@ import {
 
 const STATUS_FILTERS = ["All", "live", "upcoming", "ended"];
 
-export default function ExplorerModal({ initialStatus = "All", onClose, onSelectTournament, open }) {
+export default function ExplorerModal({ initialStatus = "All", onClose, onEnterTournament, onSelectTournament, open }) {
   const [initialCachedItems] = useState(() => readCachedExplorerItems());
   const [items, setItems] = useState(initialCachedItems);
   const [loading, setLoading] = useState(false);
@@ -318,6 +318,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
               expandedTournamentLoading={expandedTournamentLoading}
               item={item}
               key={item.id}
+              onEnterTournament={onEnterTournament}
               onSelectTournament={(slug) => {
                 const nextState = nextExplorerModalState(
                   { expandedId, selectedSlug },
@@ -353,7 +354,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
             {selectedTournamentLoading ? <span className="explorer-detail-empty">Loading schedule and timings...</span> : null}
             {selectedTournamentError ? <span className="explorer-detail-empty">{selectedTournamentError}</span> : null}
             {!selectedTournamentLoading && !selectedTournamentError && selectedTournament ? (
-              <SelectedTournamentDetails tournament={selectedTournament} />
+              <SelectedTournamentDetails onEnterTournament={onEnterTournament} tournament={selectedTournament} />
             ) : null}
           </div>
         ) : null}
@@ -368,6 +369,7 @@ function ExplorerCard({
   expandedTournamentError,
   expandedTournamentLoading,
   item,
+  onEnterTournament,
   onSelectTournament,
   onToggle,
 }) {
@@ -422,7 +424,7 @@ function ExplorerCard({
             <ChevronDown className={expanded ? "rotated" : ""} size={17} />
           </button>
         ) : <span className="explorer-schedule-toggle explorer-schedule-toggle-disabled">Archived</span>}
-        <button className="explorer-enter-button" onClick={() => onSelectTournament?.(item.slug)} type="button">
+        <button className="explorer-enter-button" onClick={() => onEnterTournament?.(item.slug)} type="button">
           Enter
         </button>
       </div>
@@ -449,7 +451,7 @@ function ExplorerCard({
   );
 }
 
-function SelectedTournamentDetails({ tournament }) {
+function SelectedTournamentDetails({ onEnterTournament, tournament }) {
   return (
     <div className="explorer-selected-details">
       <div className="explorer-selected-meta">
@@ -459,7 +461,7 @@ function SelectedTournamentDetails({ tournament }) {
       </div>
       <p className="explorer-selected-description">{tournament.description || "Schedule and timings loaded from the competition slug page."}</p>
       <div className="explorer-selected-actions">
-        <button className="explorer-enter-button" onClick={() => window.location.assign(`/tournaments/${tournament.slug}`)} type="button">
+        <button className="explorer-enter-button" onClick={() => onEnterTournament?.(tournament.slug)} type="button">
           Enter
         </button>
       </div>

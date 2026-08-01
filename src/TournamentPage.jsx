@@ -131,7 +131,7 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
         <nav className="tournament-route-nav" aria-label="Tournament navigation">
           <a href="/"><ArrowLeft size={17} /> haramball.xyz</a>
           <div className="tournament-route-nav-actions">
-            <a className="tournament-enter-action" href="#official-schedule">Enter</a>
+            <a className="tournament-enter-action" href="#tournament-entry">Enter</a>
             <button onClick={onClose} type="button"><X size={17} /> Close</button>
           </div>
         </nav>

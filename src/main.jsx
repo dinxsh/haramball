@@ -49,7 +49,7 @@ import {
   weiToHuman,
 } from "./bento";
 import ExplorerModal from "./ExplorerModal.jsx";
-import TournamentPage from "./TournamentPage.jsx";
+import TournamentPage, { TournamentDialog } from "./TournamentPage.jsx";
 import { tournamentSlugFromPath } from "./explorer.js";
 import "./styles.css";
 
@@ -114,6 +114,7 @@ function MarketApp() {
   const [readNotificationIds, setReadNotificationIds] = useState([]);
   const [profileModalOpen, setProfileModalOpen] = useState(() => !localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY));
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [activeTournamentSlug, setActiveTournamentSlug] = useState("");
   const [profileMode, setProfileMode] = useState("onboarding");
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || "classic");
   const [toast, setToast] = useState("");
@@ -190,6 +191,11 @@ function MarketApp() {
     window.requestAnimationFrame(() => explorerButtonRef.current?.focus());
   };
   const openLiveExplore = () => setExplorerOpen(true);
+  const enterTournamentFromExplorer = (slug) => {
+    if (!slug) return;
+    setActiveTournamentSlug(slug);
+    setExplorerOpen(false);
+  };
 
   useEffect(() => {
     setExplorerOpen(true);
@@ -1087,7 +1093,17 @@ function MarketApp() {
         />
       ) : null}
 
-      <ExplorerModal onClose={closeExplorer} onSelectTournament={() => {}} open={explorerOpen} />
+      <ExplorerModal
+        onClose={closeExplorer}
+        onEnterTournament={enterTournamentFromExplorer}
+        onSelectTournament={() => {}}
+        open={explorerOpen}
+      />
+      <TournamentDialog
+        onClose={() => setActiveTournamentSlug("")}
+        open={Boolean(activeTournamentSlug)}
+        slug={activeTournamentSlug}
+      />
 
       <div className={toast ? "toast show" : "toast"}>{toast}</div>
     </main>

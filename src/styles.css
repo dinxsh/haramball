@@ -3639,6 +3639,30 @@ button.explorer-card-link {
   box-shadow: 12px 12px 0 var(--cyan), 21px 21px 0 rgba(255, 212, 71, 0.72);
 }
 
+.tournament-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(5, 5, 7, 0.78);
+  backdrop-filter: blur(6px);
+}
+
+.tournament-route-shell-dialog {
+  width: min(1120px, 100%);
+  min-height: 0;
+  max-height: calc(100vh - 44px);
+  padding: 0;
+}
+
+.tournament-route-panel-dialog {
+  min-height: 0;
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+}
+
 .tournament-route-nav {
   min-height: 64px;
   display: flex;
@@ -4215,6 +4239,12 @@ button.explorer-card-link {
 @media (max-width: 620px) {
   .tournament-route-shell { padding: 0; }
   .tournament-route-panel { min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
+  .tournament-dialog-backdrop { padding: 0; }
+  .tournament-route-shell-dialog,
+  .tournament-route-panel-dialog {
+    width: 100%;
+    max-height: 100dvh;
+  }
   .tournament-route-nav { padding: 10px 12px; }
   .tournament-route-nav a,
   .tournament-route-nav button { min-height: 38px; padding: 0 10px; font-size: 9px; }
