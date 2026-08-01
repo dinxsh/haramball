@@ -785,10 +785,10 @@ function MarketApp() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${marketEnded ? "is-ended-market" : ""}`}>
       <section className="phone-frame" aria-label="haramball.xyz markets app">
         <div className="phone-screen">
-          <header className="match-hero">
+          <header className={`match-hero ${marketEnded ? "is-ended" : ""}`}>
             <nav className="topbar" aria-label="Match controls">
               <div className="brand">
                 <span className="brand-wordmark">haramball.xyz</span>
@@ -873,7 +873,7 @@ function MarketApp() {
               )}
             </div>
             {market ? (
-              <div className="market-context" aria-label="Market context">
+              <div className={`market-context ${marketEnded ? "is-ended" : ""}`} aria-label="Market context">
                 <div className="fixture-picker">
                   <span>{marketEnded ? "Final match" : "Random bet"}</span>
                   <b title={market.title || market.duelId}>
@@ -1004,7 +1004,7 @@ function MarketApp() {
           <section className="intro-panel ended-desktop-panel">
             <div className="eyebrow"><Lock size={16} /> Final</div>
             <h2>{finalResult.title}</h2>
-            <p>{finalResult.detail}</p>
+            {finalResult.score ? <p>Final score {finalResult.score}</p> : null}
           </section>
         ) : (
           <>

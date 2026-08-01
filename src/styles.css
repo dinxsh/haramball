@@ -942,6 +942,18 @@ button:disabled {
   background: #fff5cf;
 }
 
+.app-shell.is-ended-market .match-hero .ended-badge,
+.app-shell.is-ended-market .market-context.is-ended,
+.app-shell.is-ended-market .cycle-card.is-ended .timer-label,
+.app-shell.is-ended-market .cycle-card.is-ended .question-block,
+.app-shell.is-ended-market .cycle-card.is-ended .ended-market-notice {
+  display: none;
+}
+
+.app-shell.is-ended-market .cycle-card.is-ended .timer-block {
+  padding-bottom: 16px;
+}
+
 .cycle-card::after,
 .settlement-card::after,
 .feed-card::after,
@@ -4470,6 +4482,30 @@ button.explorer-card-link {
 
   .intro-panel {
     display: none;
+  }
+
+  .app-shell.is-ended-market .market-context.is-ended {
+    display: grid;
+  }
+
+  .app-shell.is-ended-market .match-hero .ended-badge {
+    display: inline-flex;
+  }
+
+  .app-shell.is-ended-market .cycle-card.is-ended .timer-label {
+    display: flex;
+  }
+
+  .app-shell.is-ended-market .cycle-card.is-ended .question-block {
+    display: block;
+  }
+
+  .app-shell.is-ended-market .cycle-card.is-ended .ended-market-notice {
+    display: grid;
+  }
+
+  .app-shell.is-ended-market .cycle-card.is-ended .timer-block {
+    padding-bottom: 0;
   }
 
   .status-grid {
