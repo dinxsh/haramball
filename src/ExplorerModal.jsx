@@ -21,15 +21,17 @@ import {
   formatExplorerPrize,
   nextExplorerModalState,
   preloadExplorerItems,
+  readCachedExplorerItems,
   shouldShowExplorerSkeleton,
 } from "./explorer.js";
 
 const STATUS_FILTERS = ["All", "live", "upcoming", "ended"];
 
 export default function ExplorerModal({ initialStatus = "All", onClose, onSelectTournament, open }) {
-  const [items, setItems] = useState([]);
+  const [initialCachedItems] = useState(() => readCachedExplorerItems());
+  const [items, setItems] = useState(initialCachedItems);
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => initialCachedItems.length > 0);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sport, setSport] = useState("All");
@@ -80,7 +82,10 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onSelect
 
   useEffect(() => {
     let active = true;
-    preloadExplorerItems().then((nextItems) => {
+    const request = initialCachedItems.length
+      ? fetchExplorerItems({ refresh: true })
+      : preloadExplorerItems();
+    request.then((nextItems) => {
       if (!active) return;
       setItems(nextItems);
       setLoaded(true);

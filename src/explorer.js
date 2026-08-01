@@ -1,5 +1,7 @@
 const PRIORITY_SPORTS = ["Football", "Formula 1"];
 const TOKEN_DECIMALS = 18n;
+const EXPLORER_SESSION_CACHE_KEY = "haramball-explorer-items-v1";
+const EXPLORER_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 let explorerCache = null;
 let explorerRequest = null;
 
@@ -9,10 +11,18 @@ export function defaultExplorerStatus(status) {
 
 export function fetchExplorerItems({ refresh = false } = {}) {
   if (!refresh && explorerCache) return Promise.resolve(explorerCache);
+  if (!refresh) {
+    const sessionItems = readCachedExplorerItems();
+    if (sessionItems.length) {
+      explorerCache = sessionItems;
+      return Promise.resolve(sessionItems);
+    }
+  }
   if (!refresh && explorerRequest) return explorerRequest;
 
   const request = requestExplorerItems().then((items) => {
     explorerCache = items;
+    writeCachedExplorerItems(items);
     return items;
   }).finally(() => {
     if (explorerRequest === request) explorerRequest = null;
@@ -29,6 +39,34 @@ export function preloadExplorerItems() {
 export function resetExplorerCache() {
   explorerCache = null;
   explorerRequest = null;
+  clearCachedExplorerItems();
+}
+
+export function readCachedExplorerItems({ now = Date.now() } = {}) {
+  try {
+    if (typeof sessionStorage === "undefined") return [];
+    const cached = JSON.parse(sessionStorage.getItem(EXPLORER_SESSION_CACHE_KEY) || "null");
+    if (!cached || !Array.isArray(cached.items)) return [];
+    if (now - Number(cached.savedAt || 0) > EXPLORER_SESSION_CACHE_TTL_MS) return [];
+    return cached.items;
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedExplorerItems(items) {
+  try {
+    if (typeof sessionStorage === "undefined" || !Array.isArray(items)) return;
+    sessionStorage.setItem(EXPLORER_SESSION_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), items }));
+  } catch {
+    // Cache is an optimization only; private browsing or quota errors should not block Explorer.
+  }
+}
+
+function clearCachedExplorerItems() {
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(EXPLORER_SESSION_CACHE_KEY);
+  } catch {}
 }
 
 export function nextExplorerModalState(state = {}, action = {}) {

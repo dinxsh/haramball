@@ -4,6 +4,9 @@ import { normalizeTournamentDetail } from "./_tournament.js";
 
 const DEFAULT_BENTO_URL = "https://internal-server.bento.fun";
 const DEFAULT_TOURNAMENTS_URL = "https://bento-fun-tournaments-backend-3nku.onrender.com";
+const EXPLORER_CACHE_TTL_MS = 60 * 1000;
+let explorerCatalogCache = null;
+let explorerCatalogRequest = null;
 
 export function getBentoServerConfig() {
   const baseUrl = stripTrailingSlash(process.env.BENTO_URL || DEFAULT_BENTO_URL);
@@ -43,6 +46,24 @@ export async function fetchBentoMarkets({ page = 1, limit = 20 } = {}) {
 }
 
 export async function fetchBentoExplorer({ now = Date.now() } = {}) {
+  if (explorerCatalogCache && now - explorerCatalogCache.savedAt < EXPLORER_CACHE_TTL_MS) {
+    return explorerCatalogCache.payload;
+  }
+  if (explorerCatalogRequest) return explorerCatalogRequest;
+
+  explorerCatalogRequest = requestBentoExplorer({ now })
+    .then((payload) => {
+      explorerCatalogCache = { savedAt: now, payload };
+      return payload;
+    })
+    .finally(() => {
+      explorerCatalogRequest = null;
+    });
+
+  return explorerCatalogRequest;
+}
+
+async function requestBentoExplorer({ now = Date.now() } = {}) {
   const config = requireConfiguredBento();
   if (!config.tournamentsBaseUrl) {
     throw httpError(503, "Tournament Explorer requires the tournaments host", true);

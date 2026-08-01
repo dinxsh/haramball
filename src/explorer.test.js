@@ -145,6 +145,41 @@ test("prefetch shares one request with modal loading and refresh bypasses the ca
   }
 });
 
+test("uses fresh session Explorer cache before making a network request", async () => {
+  assert.equal(typeof explorerModule.readCachedExplorerItems, "function");
+  explorerModule.resetExplorerCache();
+
+  const originalFetch = globalThis.fetch;
+  const originalSessionStorage = globalThis.sessionStorage;
+  const storage = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: (key) => storage.delete(key),
+  };
+  globalThis.fetch = async () => {
+    throw new Error("network should not be needed for fresh cache");
+  };
+
+  try {
+    storage.set("haramball-explorer-items-v1", JSON.stringify({
+      savedAt: Date.now(),
+      items: [items[2]],
+    }));
+
+    assert.deepEqual(await explorerModule.fetchExplorerItems(), [items[2]]);
+    assert.deepEqual(explorerModule.readCachedExplorerItems(), [items[2]]);
+  } finally {
+    explorerModule.resetExplorerCache();
+    globalThis.fetch = originalFetch;
+    if (originalSessionStorage === undefined) {
+      delete globalThis.sessionStorage;
+    } else {
+      globalThis.sessionStorage = originalSessionStorage;
+    }
+  }
+});
+
 test("a failed prefetch leaves the modal load free to retry", async () => {
   assert.equal(typeof explorerModule.resetExplorerCache, "function");
   explorerModule.resetExplorerCache();
