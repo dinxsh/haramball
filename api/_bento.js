@@ -208,6 +208,17 @@ export async function enterBentoTournament({ slug, token, wallet, ...body } = {}
   return { entry: { kind: isF1 ? "f1" : "tournament", tournamentId: source.id, raw: entry } };
 }
 
+export async function createBentoMarket({ token, requestId, ...body } = {}) {
+  if (!token) throw httpError(401, "Bento login is required");
+
+  const market = normalizeCreateMarketPayload(body);
+  const sdk = createUserBentoSdk(token);
+  return {
+    creation: await sdk.user.duels.createDuel(market, requestId ? { requestId } : undefined),
+    market,
+  };
+}
+
 export async function fetchBentoMarketAnalytics(duelId) {
   if (!duelId) throw httpError(400, "duelId is required");
   const sdk = createPublicBentoSdk();
@@ -553,6 +564,50 @@ function usernameFrom(value) {
   return slug || "haramball-player";
 }
 
+export function normalizeCreateMarketPayload(body = {}) {
+  const question = String(body.question || body.title || body.name || "").trim();
+  const category = String(body.category || "").trim();
+  const description = String(body.description || body.resolutionRules || body.rules || "").trim();
+  const type = String(body.type || "prediction").toLowerCase() === "versus" ? "versus" : "prediction";
+  const optionA = String(body.optionA || (type === "prediction" ? "YES" : "")).trim();
+  const optionB = String(body.optionB || (type === "prediction" ? "NO" : "")).trim();
+  const startTime = isoDateFrom(body.startTime || body.startAt);
+  const endTime = isoDateFrom(body.endTime || body.endAt);
+  const collateralMode = String(body.collateralMode || "usdc").toLowerCase() === "credits" ? "credits" : "usdc";
+  const privacyAccess = String(body.privacyAccess || "public").toLowerCase() === "private" ? "private" : "public";
+  const coverImageUrl = String(body.coverImageUrl || body.imageUrl || "").trim();
+  const tags = Array.isArray(body.tags)
+    ? body.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 8)
+    : String(body.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 8);
+
+  if (!question) throw httpError(400, "Market name is required", true);
+  if (!category) throw httpError(400, "Category is required", true);
+  if (!description) throw httpError(400, "Resolution rules are required", true);
+  if (!startTime) throw httpError(400, "Start time is required", true);
+  if (!endTime) throw httpError(400, "End time is required", true);
+  if (Date.parse(endTime) <= Date.parse(startTime)) throw httpError(400, "End time must be after start time", true);
+  if (!optionA || !optionB) throw httpError(400, "Both market options are required", true);
+
+  return {
+    question,
+    type,
+    category,
+    description,
+    optionA,
+    optionB,
+    startTime,
+    endTime,
+    privacyAccess,
+    collateralMode,
+    ...(coverImageUrl ? { coverImageUrl } : {}),
+    ...(tags.length ? { tags } : {}),
+    ruleSpec: {
+      resolutionRules: description,
+      source: "haramball.xyz",
+    },
+  };
+}
+
 function normalizePlaceBetNumbers(bet) {
   return {
     ...bet,
@@ -572,6 +627,12 @@ function normalizeSellBetNumbers(sell) {
     minAmountOut: numberFrom(sell.minAmountOut),
     slippageBps: sell.slippageBps === undefined ? undefined : Number(sell.slippageBps),
   };
+}
+
+function isoDateFrom(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : "";
 }
 
 function numberFrom(value) {

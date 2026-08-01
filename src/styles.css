@@ -197,7 +197,28 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.create-market-nav-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  color: #050507;
+  background: var(--yellow);
+  border: 3px solid #050507;
+  border-radius: 999px;
+  box-shadow: 3px 3px 0 #050507;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .explorer-nav-button:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 #050507;
+}
+
+.create-market-nav-button:hover {
   transform: translate(-1px, -1px);
   box-shadow: 5px 5px 0 #050507;
 }
@@ -1936,6 +1957,23 @@ button:disabled {
   gap: 10px;
 }
 
+.create-market-panel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  color: #050507;
+  background: var(--cyan);
+  border: 4px solid #050507;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .player-profile-panel,
 .profile-metrics,
 .activity-log-row {
@@ -2462,6 +2500,178 @@ button:disabled {
   border: 5px solid #050507;
   border-radius: 8px;
   box-shadow: 12px 12px 0 rgba(56, 189, 248, 0.78), 20px 20px 0 rgba(255, 212, 71, 0.48);
+}
+
+.market-creator-modal {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  color: #050507;
+  background: var(--panel);
+  border: 5px solid #050507;
+  border-radius: 8px;
+  box-shadow: 12px 12px 0 rgba(56, 189, 248, 0.78), 20px 20px 0 rgba(255, 212, 71, 0.48);
+}
+
+.market-creator-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 18px;
+  padding: 16px;
+}
+
+.market-creator-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.market-creator-fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.market-creator-fields input,
+.market-creator-fields select,
+.market-creator-fields textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  color: #050507;
+  background: #fffdf2;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.market-creator-fields textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.market-type-toggle,
+.market-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.market-type-toggle button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #050507;
+  background: #fffdf2;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.market-type-toggle button.active {
+  background: var(--cyan);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #050507;
+}
+
+.market-create-preview {
+  align-self: start;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #151515;
+  color: #fffdf2;
+  border: 4px solid #050507;
+  border-radius: 8px;
+  box-shadow: var(--mini-shadow);
+}
+
+.market-create-preview > span,
+.market-create-preview small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d7dfd7;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.market-create-image {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  overflow: hidden;
+  color: #76839c;
+  background: #080808;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.market-create-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.market-create-preview h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.market-create-odds,
+.market-create-outcomes {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.market-create-odds b {
+  color: var(--lime);
+  font-size: 12px;
+}
+
+.market-create-odds b:last-child {
+  color: var(--red);
+}
+
+.market-create-odds i {
+  height: 12px;
+  background: repeating-linear-gradient(90deg, #262626 0 3px, transparent 3px 8px);
+}
+
+.market-create-outcomes {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.market-create-outcomes strong {
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.18);
+  color: var(--lime);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-create-outcomes strong:last-child {
+  background: rgba(255, 75, 75, 0.2);
+  color: var(--red);
 }
 
 .private-group-tabs {
@@ -4793,6 +5003,18 @@ button.explorer-card-link {
     box-shadow: none;
   }
 
+  .market-creator-modal {
+    width: 100%;
+    max-height: 100dvh;
+    border-width: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .market-creator-body {
+    grid-template-columns: 1fr;
+  }
+
   .explorer-head {
     gap: 16px;
     padding: 18px;
@@ -4895,14 +5117,16 @@ button.explorer-card-link {
     gap: 6px;
   }
 
-  .explorer-nav-button {
+  .explorer-nav-button,
+  .create-market-nav-button {
     width: 36px;
     min-height: 36px;
     justify-content: center;
     padding: 0;
   }
 
-  .explorer-nav-button span {
+  .explorer-nav-button span,
+  .create-market-nav-button span {
     display: none;
   }
 

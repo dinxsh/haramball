@@ -140,6 +140,11 @@ export async function sellBentoBet({ token, idempotencyKey, sell }) {
   return postJson("/api/bento?route=sell", { idempotencyKey, sell }, token);
 }
 
+export async function createBentoMarketDraft({ token, requestId, market }) {
+  const payload = await postJson("/api/bento?route=create-market", { requestId, ...market }, token);
+  return payload.creation || payload;
+}
+
 export async function fetchLeaderboardUsers() {
   const payload = await fetchJson("/api/users");
   return payload.users || [];

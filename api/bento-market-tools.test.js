@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createBentoHandler,
+  createBentoCreateMarketHandler,
   createBentoMarketAnalyticsHandler,
   createBentoSellEstimateHandler,
   createBentoSellHandler,
@@ -81,6 +82,30 @@ test("sell estimate and sell routes forward idempotent JSON bodies", async () =>
 
   assert.equal(sellResponse.statusCode, 200);
   assert.deepEqual(sellBody, { token: "jwt", idempotencyKey: "idem", sell: { duelId: "duel-1" } });
+});
+
+test("create market route forwards bearer token and draft body", async () => {
+  const response = responseRecorder();
+  let received;
+  await createBentoCreateMarketHandler(async (body) => {
+    received = body;
+    return { creation: { kind: "accepted" } };
+  })({
+    headers: { authorization: "Bearer jwt" },
+    url: "/api/bento?route=create-market",
+    [Symbol.asyncIterator]: async function* body() {
+      yield Buffer.from(JSON.stringify({ requestId: "req-1", question: "Will it ship?", category: "Football" }));
+    },
+  }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(received, {
+    token: "jwt",
+    requestId: "req-1",
+    question: "Will it ship?",
+    category: "Football",
+  });
+  assert.deepEqual(JSON.parse(response.body), { creation: { kind: "accepted" } });
 });
 
 function responseRecorder() {

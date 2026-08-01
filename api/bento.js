@@ -1,6 +1,7 @@
 import {
   bentoReadinessPayload,
   createBentoExternalLink,
+  createBentoMarket,
   estimateBentoBet,
   estimateBentoSell,
   exchangeBentoExternalLink,
@@ -31,6 +32,7 @@ const ROUTES = {
   portfolio: "portfolio",
   "sell-estimate": "sell-estimate",
   sell: "sell",
+  "create-market": "create-market",
 };
 
 export function createBentoMarketAnalyticsHandler(fetchAnalytics = fetchBentoMarketAnalytics) {
@@ -75,6 +77,17 @@ export function createBentoSellHandler(sellBet = sellBentoBet) {
     try {
       const body = await readJsonBody(request);
       sendJson(response, 200, await sellBet({ ...body, token: bearerToken(request) || body.token }));
+    } catch (error) {
+      handleApiError(response, error);
+    }
+  };
+}
+
+export function createBentoCreateMarketHandler(createMarket = createBentoMarket) {
+  return async function bentoCreateMarketHandler(request, response) {
+    try {
+      const body = await readJsonBody(request);
+      sendJson(response, 200, await createMarket({ ...body, token: bearerToken(request) || body.token }));
     } catch (error) {
       handleApiError(response, error);
     }
@@ -126,6 +139,8 @@ export function createBentoHandler() {
           return createBentoSellEstimateHandler()(request, response);
         case ROUTES.sell:
           return createBentoSellHandler()(request, response);
+        case ROUTES["create-market"]:
+          return createBentoCreateMarketHandler()(request, response);
         default:
           throw exposedError(404, "Unknown Bento route");
       }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bentoReadinessPayload, fetchBentoExplorer, getBentoServerConfig, normalizeBentoMarket } from "./_bento.js";
+import { bentoReadinessPayload, fetchBentoExplorer, getBentoServerConfig, normalizeBentoMarket, normalizeCreateMarketPayload } from "./_bento.js";
 
 test("Bento readiness reports missing builder key without exposing secrets", () => {
   const previousKey = process.env.BENTO_BUILDER_API_KEY;
@@ -119,6 +119,40 @@ test("marks confidently sourced score results separately from ambiguous aliases"
     normalizeBentoMarket({ duelId: "b", optionA: "YES", optionB: "NO", score: { optionA: 1, optionB: 0 } }).resultSource,
     "ambiguous",
   );
+});
+
+test("normalizes Bento market creation payloads for createDuel", () => {
+  const market = normalizeCreateMarketPayload({
+    question: "Will Bento ship creator markets?",
+    type: "versus",
+    category: "Esports",
+    description: "Resolve from Bento's public announcement.",
+    optionA: "Ships",
+    optionB: "Does not ship",
+    startTime: "2026-08-02T10:00:00.000Z",
+    endTime: "2026-08-02T12:00:00.000Z",
+    privacyAccess: "private",
+    collateralMode: "credits",
+    tags: "haramball, creator",
+  });
+
+  assert.deepEqual(market, {
+    question: "Will Bento ship creator markets?",
+    type: "versus",
+    category: "Esports",
+    description: "Resolve from Bento's public announcement.",
+    optionA: "Ships",
+    optionB: "Does not ship",
+    startTime: "2026-08-02T10:00:00.000Z",
+    endTime: "2026-08-02T12:00:00.000Z",
+    privacyAccess: "private",
+    collateralMode: "credits",
+    tags: ["haramball", "creator"],
+    ruleSpec: {
+      resolutionRules: "Resolve from Bento's public announcement.",
+      source: "haramball.xyz",
+    },
+  });
 });
 
 test("server config uses documented tournaments host by default", () => {

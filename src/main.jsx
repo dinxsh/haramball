@@ -11,9 +11,11 @@ import {
   Compass,
   Flame,
   Gauge,
+  Globe,
   Lock,
   Medal,
   Palette,
+  Plus,
   Settings,
   ShieldCheck,
   Trophy,
@@ -24,6 +26,7 @@ import {
   Zap,
 } from "lucide-react";
 import {
+  createBentoMarketDraft,
   createBentoWalletLink,
   createPrivateGroup,
   estimateBentoBet,
@@ -73,6 +76,7 @@ const MIN_BENTO_STAKE = 5;
 const TOKEN_OPTIONS = [
   { symbol: "USDC", name: "USD Coin", network: "Base", icon: "$" },
 ];
+const MARKET_CATEGORIES = ["Cricket", "Football", "Basketball", "Hockey", "Formula 1", "American Football", "Baseball", "Tennis", "Esports", "Rugby"];
 const TEAM_FLAGS = {
   Argentina: "\u{1F1E6}\u{1F1F7}",
   Brazil: "\u{1F1E7}\u{1F1F7}",
@@ -125,6 +129,9 @@ function MarketApp() {
   const [groupMode, setGroupMode] = useState("create");
   const [groupDraft, setGroupDraft] = useState({ name: "", invite: "", code: "" });
   const [activeGroupId, setActiveGroupId] = useState("");
+  const [marketCreatorOpen, setMarketCreatorOpen] = useState(false);
+  const [marketCreating, setMarketCreating] = useState(false);
+  const [marketDraft, setMarketDraft] = useState(defaultMarketDraft);
   const [profileMode, setProfileMode] = useState("onboarding");
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || "classic");
   const [toast, setToast] = useState("");
@@ -872,6 +879,49 @@ function MarketApp() {
     }
   };
 
+  const openMarketCreator = () => {
+    setMarketDraft(defaultMarketDraft());
+    setMarketCreatorOpen(true);
+  };
+
+  const submitMarketDraft = async (event) => {
+    event.preventDefault();
+    if (!token) {
+      showToast("Connect wallet before creating on Bento");
+      setMarketCreatorOpen(false);
+      openProfileModal(activeProfile ? "settings" : "onboarding");
+      return;
+    }
+    if (!marketDraft.question.trim() || !marketDraft.category || !marketDraft.description.trim()) {
+      showToast("Add name, category, and rules");
+      return;
+    }
+
+    setMarketCreating(true);
+    try {
+      const creation = await createBentoMarketDraft({
+        token,
+        requestId: `haramball-market-${Date.now()}`,
+        market: {
+          ...marketDraft,
+          startTime: localInputToIso(marketDraft.startTime),
+          endTime: localInputToIso(marketDraft.endTime),
+          tags: marketDraft.tags,
+        },
+      });
+      setMarketCreatorOpen(false);
+      setFeed((items) => [{ minute: timeStamp(), label: `Created Bento market: ${marketDraft.question}` }, ...items].slice(0, 6));
+      showToast(creation?.raw?.duelId || creation?.duelId ? "Bento market submitted" : "Market creation submitted");
+      fetchBentoMarkets({ page: 1, limit: 20 })
+        .then((nextMarkets) => setMarkets(nextMarkets.filter((item) => item.duelId)))
+        .catch(() => {});
+    } catch (error) {
+      showToast(error.message || "Bento could not create market");
+    } finally {
+      setMarketCreating(false);
+    }
+  };
+
   const openTokenModal = () => {
     setTokenSearch("");
     setTokenModalOpen(true);
@@ -947,6 +997,14 @@ function MarketApp() {
                 <span className="brand-wordmark">haramball.xyz</span>
               </div>
               <div className="topbar-actions">
+                <button
+                  className="create-market-nav-button"
+                  onClick={openMarketCreator}
+                  type="button"
+                >
+                  <Plus size={17} />
+                  <span>Create</span>
+                </button>
                 <button
                   className="explorer-nav-button"
                   onClick={() => setExplorerOpen(true)}
@@ -1190,6 +1248,10 @@ function MarketApp() {
           </div>
         </section>
 
+        <button className="create-market-panel-button" onClick={openMarketCreator} type="button">
+          <Plus size={18} />
+          Create New Market
+        </button>
         <PrivateGroupCard group={activeGroup} onOpen={openGroupModal} wide />
         <ProfileActivityCard activeProfile={activeProfile} feed={feed} loading={profilesLoading} profiles={leaderboard} wide />
       </aside>
@@ -1247,6 +1309,15 @@ function MarketApp() {
           onJoin={joinGroup}
           setDraft={setGroupDraft}
           setMode={setGroupMode}
+        />
+      ) : null}
+      {marketCreatorOpen ? (
+        <MarketCreatorModal
+          creating={marketCreating}
+          draft={marketDraft}
+          onClose={() => !marketCreating && setMarketCreatorOpen(false)}
+          onSubmit={submitMarketDraft}
+          setDraft={setMarketDraft}
         />
       ) : null}
 
@@ -1355,6 +1426,145 @@ function ProfileActivityCard({ activeProfile, fallbackToFirst = true, feed, load
         <div className="leaderboard-empty">Create a profile to track activity</div>
       )}
     </article>
+  );
+}
+
+function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
+  const yesNo = draft.type !== "versus";
+  const update = (patch) => setDraft((value) => ({ ...value, ...patch }));
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="market-creator-modal" role="dialog" aria-modal="true" aria-label="Create Bento market">
+        <div className="modal-hero">
+          <div>
+            <span className="category">Bento Creator</span>
+            <h2>Create New Market</h2>
+            <p>Create a Bento YES/NO or versus market from haramball.xyz.</p>
+          </div>
+          <button className="profile-icon-button modal-close" disabled={creating} onClick={onClose} type="button">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form className="market-creator-body" onSubmit={onSubmit}>
+          <div className="market-creator-fields">
+            <div className="market-type-toggle" aria-label="Market type">
+              {[
+                ["prediction", "Yes/No"],
+                ["versus", "Versus"],
+              ].map(([value, label]) => (
+                <button className={draft.type === value ? "active" : ""} key={value} onClick={() => update({ type: value })} type="button">
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="market-type-toggle" aria-label="Market collateral">
+              {[
+                ["usdc", "USD"],
+                ["credits", "Credits"],
+              ].map(([value, label]) => (
+                <button className={draft.collateralMode === value ? "active" : ""} key={value} onClick={() => update({ collateralMode: value })} type="button">
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label>
+              <span>Market name</span>
+              <input
+                maxLength={200}
+                onChange={(event) => update({ question: event.target.value })}
+                placeholder="Will India win their next T20?"
+                value={draft.question}
+              />
+            </label>
+
+            <label>
+              <span>Category</span>
+              <select onChange={(event) => update({ category: event.target.value })} value={draft.category}>
+                {MARKET_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </label>
+
+            <div className="market-option-grid">
+              <label>
+                <span>{yesNo ? "Yes label" : "Option A"}</span>
+                <input maxLength={40} onChange={(event) => update({ optionA: event.target.value })} value={draft.optionA} />
+              </label>
+              <label>
+                <span>{yesNo ? "No label" : "Option B"}</span>
+                <input maxLength={40} onChange={(event) => update({ optionB: event.target.value })} value={draft.optionB} />
+              </label>
+            </div>
+
+            <label>
+              <span>Resolution rules</span>
+              <textarea
+                maxLength={1000}
+                onChange={(event) => update({ description: event.target.value })}
+                placeholder="Resolve YES if the official result source confirms the outcome before the end time."
+                value={draft.description}
+              />
+            </label>
+
+            <div className="market-option-grid">
+              <label>
+                <span>Start</span>
+                <input onChange={(event) => update({ startTime: event.target.value })} type="datetime-local" value={draft.startTime} />
+              </label>
+              <label>
+                <span>End</span>
+                <input onChange={(event) => update({ endTime: event.target.value })} type="datetime-local" value={draft.endTime} />
+              </label>
+            </div>
+
+            <label>
+              <span>Cover image URL</span>
+              <input
+                onChange={(event) => update({ coverImageUrl: event.target.value })}
+                placeholder="https://..."
+                value={draft.coverImageUrl}
+              />
+            </label>
+
+            <div className="market-type-toggle" aria-label="Market sharing">
+              {[
+                ["private", "Private"],
+                ["public", "Public"],
+              ].map(([value, label]) => (
+                <button className={draft.privacyAccess === value ? "active" : ""} key={value} onClick={() => update({ privacyAccess: value })} type="button">
+                  {value === "private" ? <Lock size={15} /> : <Globe size={15} />}
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <button className="activate-button" disabled={creating} type="submit">
+              <Plus size={17} />
+              {creating ? "Creating..." : "Create on Bento"}
+            </button>
+          </div>
+
+          <aside className="market-create-preview">
+            <span>{draft.privacyAccess === "private" ? <Lock size={14} /> : <Globe size={14} />} {draft.privacyAccess} Market</span>
+            <div className="market-create-image">{draft.coverImageUrl ? <img alt="" src={draft.coverImageUrl} /> : "Preview Image"}</div>
+            <h3>{draft.question || "Market Name"}</h3>
+            <div className="market-create-odds">
+              <b>0%</b>
+              <i />
+              <b>0%</b>
+            </div>
+            <div className="market-create-outcomes">
+              <strong>{draft.optionA || "YES"}</strong>
+              <strong>{draft.optionB || "NO"}</strong>
+            </div>
+            <small>{draft.category} - {draft.collateralMode.toUpperCase()}</small>
+          </aside>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -2064,6 +2274,26 @@ function loadProfiles() {
   }
 }
 
+function defaultMarketDraft() {
+  const now = new Date();
+  const start = new Date(now.getTime() + 15 * 60 * 1000);
+  const end = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  return {
+    question: "",
+    type: "prediction",
+    category: "Football",
+    description: "",
+    optionA: "YES",
+    optionB: "NO",
+    startTime: dateTimeLocalValue(start),
+    endTime: dateTimeLocalValue(end),
+    privacyAccess: "public",
+    collateralMode: "usdc",
+    coverImageUrl: "",
+    tags: ["haramball"],
+  };
+}
+
 function loadPrivateGroups() {
   try {
     const stored = JSON.parse(localStorage.getItem(PRIVATE_GROUP_STORAGE_KEY) || "[]");
@@ -2071,6 +2301,16 @@ function loadPrivateGroups() {
   } catch {
     return [];
   }
+}
+
+function dateTimeLocalValue(date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function localInputToIso(value) {
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : "";
 }
 
 function loadActivityFeed() {
