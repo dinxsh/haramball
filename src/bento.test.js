@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as bentoModule from "./bento.js";
-import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
+import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, leaderboardRows, leaderboardSummary, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -62,6 +62,23 @@ test("normalizes Bento portfolio summary and positions", () => {
       status: "open",
     },
   ]);
+});
+
+test("builds sorted leaderboard rows and summary metrics", () => {
+  const users = [
+    { id: "a", name: "Alpha Tester", username: "alpha", wins: 1, losses: 1, points: 1220, pnl: 40, volume: 1000 },
+    { id: "b", name: "Beta Trader", username: "beta", wins: 3, losses: 0, points: 1500, pnl: 240, volume: 4000 },
+  ];
+
+  assert.deepEqual(leaderboardRows(users).map((row) => [row.rank, row.username, row.pnl, row.winRate]), [
+    [1, "beta", 240, 100],
+    [2, "alpha", 40, 50],
+  ]);
+  assert.deepEqual(leaderboardSummary(users), {
+    traders: 2,
+    totalVolume: 5000,
+    totalPnl: 280,
+  });
 });
 
 test("normalizes Bento login token and managed account variants", () => {

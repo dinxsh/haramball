@@ -43,6 +43,8 @@ import {
   humanToBaseUnits,
   initialBentoReadiness,
   isBentoMarketEnded,
+  leaderboardRows,
+  leaderboardSummary,
   loginBentoWallet,
   invitePrivateGroup,
   joinPrivateGroup,
@@ -1064,6 +1066,10 @@ function MarketApp() {
                       <Wallet size={15} />
                       Portfolio
                     </a>
+                    <a href="/leaderboard">
+                      <Trophy size={15} />
+                      Leaderboard
+                    </a>
                     <button onClick={() => setTheme((value) => value === "classic" ? "night" : "classic")} type="button">
                       <Palette size={15} />
                       Theme: {theme === "classic" ? "Classic" : "Night"}
@@ -1335,7 +1341,144 @@ function MarketApp() {
 function App() {
   const tournamentSlug = tournamentSlugFromPath(window.location.pathname);
   if (window.location.pathname === "/portfolio") return <PortfolioPage />;
+  if (window.location.pathname === "/leaderboard") return <LeaderboardPage />;
   return tournamentSlug ? <TournamentPage slug={tournamentSlug} /> : <MarketApp />;
+}
+
+function LeaderboardPage() {
+  const [users, setUsers] = useState(loadProfiles);
+  const [loading, setLoading] = useState(true);
+  const [currency, setCurrency] = useState("USDC");
+  const [range, setRange] = useState("all");
+  const [metric, setMetric] = useState("pnl");
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const normalized = users.map(normalizeProfile);
+    const ranked = leaderboardRows(normalized);
+    const filtered = ranked.filter((row) => {
+      const haystack = `${row.name} ${row.username} ${row.wallet}`.toLowerCase();
+      return haystack.includes(query.trim().toLowerCase());
+    });
+    return metric === "volume" ? [...filtered].sort((a, b) => b.volume - a.volume) : filtered;
+  }, [metric, query, users]);
+  const summary = leaderboardSummary(users.map(normalizeProfile));
+  const topValue = currency === "Credits" ? Math.round(summary.totalVolume / 12) : summary.totalVolume;
+
+  useEffect(() => {
+    let alive = true;
+    fetchLeaderboardUsers()
+      .then((nextUsers) => {
+        if (alive && nextUsers.length) setUsers(nextUsers);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return (
+    <main className="leaderboard-shell">
+      <header className="leaderboard-topbar">
+        <a className="back-link" href="/">haramball.xyz</a>
+        <h1>Leaderboard</h1>
+        <a className="portfolio-refresh" href="/portfolio">Portfolio</a>
+      </header>
+
+      <section className="leaderboard-prize">
+        <Trophy size={78} />
+        <div>
+          <strong>{currency === "Credits" ? `${formatCompact(topValue)} CR` : `$${formatCompact(topValue)}`}</strong>
+          <span><Wallet size={14} /> Connect wallet to join</span>
+        </div>
+        <Trophy size={78} />
+      </section>
+
+      <div className="leaderboard-currency-tabs">
+        {["USDC", "Credits"].map((item) => (
+          <button className={currency === item ? "active" : ""} key={item} onClick={() => setCurrency(item)} type="button">{item}</button>
+        ))}
+      </div>
+
+      <section className="leaderboard-metric-grid">
+        <LeaderboardMetricCard label="Total Volume" value={formatCompact(summary.totalVolume)} series={[2, 2, 3, 4, 8, 11]} />
+        <LeaderboardMetricCard label="Active Participants" value={summary.traders} series={[1, 2, 2.4, 3, 3, 5]} />
+      </section>
+
+      <section className="leaderboard-table-card">
+        <div className="leaderboard-table-tools">
+          <div className="leaderboard-range-tabs">
+            {["all", "today", "week", "month"].map((item) => (
+              <button className={range === item ? "active" : ""} key={item} onClick={() => setRange(item)} type="button">{titleCase(item)}</button>
+            ))}
+          </div>
+          <div className="leaderboard-right-tools">
+            <div className="leaderboard-metric-toggle">
+              <button className={metric === "pnl" ? "active" : ""} onClick={() => setMetric("pnl")} type="button">P&L</button>
+              <button className={metric === "volume" ? "active" : ""} onClick={() => setMetric("volume")} type="button">Volume</button>
+            </div>
+            <label className="leaderboard-search">
+              <Compass size={16} />
+              <input onChange={(event) => setQuery(event.target.value)} placeholder="Search..." value={query} />
+            </label>
+          </div>
+        </div>
+
+        <div className="leaderboard-table-head">
+          <span>#</span>
+          <span>Trader</span>
+          <span>P&L</span>
+          <span>Volume</span>
+          <span>Win Rate</span>
+        </div>
+        {loading ? (
+          <div className="portfolio-state">Loading leaderboard...</div>
+        ) : rows.length ? (
+          <div className="leaderboard-full-list">
+            {rows.map((row) => <LeaderboardFullRow key={row.id} row={row} />)}
+          </div>
+        ) : (
+          <div className="portfolio-state">No traders match this search.</div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function LeaderboardMetricCard({ label, value, series }) {
+  const points = series.map((value, index) => `${index * 20},${110 - value * 9}`).join(" ");
+  return (
+    <article className="leaderboard-metric-card">
+      <span><Gauge size={16} /> {label}</span>
+      <strong>{typeof value === "number" ? value : `$${value}`}</strong>
+      <svg viewBox="0 0 100 120" role="img" aria-label={`${label} trend`}>
+        <polyline points={points} fill="none" stroke="#087cff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </article>
+  );
+}
+
+function LeaderboardFullRow({ row }) {
+  const positive = row.pnl >= 0;
+  return (
+    <article className="leaderboard-full-row">
+      <span className={`leaderboard-medal rank-${Math.min(row.rank, 3)}`}>{row.rank <= 3 ? row.rank : row.rank}</span>
+      <div className="leaderboard-trader">
+        <b>{row.initials}</b>
+        <div>
+          <strong>{row.name}</strong>
+          <small>{row.wallet ? shortAddress(row.wallet) : `@${row.username || "player"}`}</small>
+        </div>
+      </div>
+      <strong className={positive ? "positive" : "negative"}>{positive ? "+" : "-"}${formatCompact(Math.abs(row.pnl))}</strong>
+      <strong>${formatCompact(row.volume)}</strong>
+      <div className="leaderboard-winrate">
+        <i><span style={{ width: `${row.winRate}%` }} /></i>
+        <b>{row.winRate}%</b>
+      </div>
+    </article>
+  );
 }
 
 function PortfolioPage() {
@@ -2460,6 +2603,17 @@ function loadPrivateGroups() {
 function dateTimeLocalValue(date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function formatCompact(value) {
+  const numeric = Number(value) || 0;
+  if (Math.abs(numeric) >= 1_000_000) return `${(numeric / 1_000_000).toFixed(numeric >= 10_000_000 ? 0 : 1)}M`;
+  if (Math.abs(numeric) >= 1_000) return `${(numeric / 1_000).toFixed(numeric >= 100_000 ? 0 : 1)}K`;
+  return numeric.toFixed(Math.abs(numeric) >= 100 ? 0 : 1);
+}
+
+function titleCase(value) {
+  return String(value || "").slice(0, 1).toUpperCase() + String(value || "").slice(1);
 }
 
 function localInputToIso(value) {

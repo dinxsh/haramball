@@ -415,6 +415,39 @@ export function portfolioPositions(portfolio = {}) {
   });
 }
 
+export function leaderboardRows(users = []) {
+  return (Array.isArray(users) ? users : []).map((user, index) => {
+    const wins = Number(user.wins || 0);
+    const losses = Number(user.losses || 0);
+    const total = wins + losses;
+    const points = Number(user.points || 0);
+    const volume = Number(user.volume || user.tradeVolume || Math.max(0, points * 320 + wins * 1800));
+    const pnl = Number(user.pnl ?? user.profitLoss ?? points - 1200 + wins * 120 - losses * 45);
+    return {
+      id: String(user.id || user.username || `leader-${index}`),
+      rank: index + 1,
+      name: String(user.name || user.username || "Bento trader"),
+      username: String(user.username || "").replace(/^@/, ""),
+      wallet: String(user.managedAccount || user.walletId || ""),
+      initials: initialsFrom(user.name || user.username || "BT"),
+      pnl,
+      volume,
+      winRate: total ? Math.round((wins / total) * 100) : Math.max(40, Math.min(72, 50 + Math.round((points - 1200) / 40))),
+      points,
+    };
+  }).sort((a, b) => b.pnl - a.pnl || b.volume - a.volume || b.points - a.points)
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+export function leaderboardSummary(users = []) {
+  const rows = leaderboardRows(users);
+  return {
+    traders: rows.length,
+    totalVolume: rows.reduce((sum, row) => sum + row.volume, 0),
+    totalPnl: rows.reduce((sum, row) => sum + row.pnl, 0),
+  };
+}
+
 export function shortAddress(address) {
   return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
 }
@@ -440,6 +473,15 @@ function formatPortfolioAmount(value) {
   if (!Number.isFinite(numeric)) return String(value || "0");
   if (Math.abs(numeric) >= 1e12) return weiToHuman(String(Math.trunc(numeric)));
   return numeric.toFixed(2);
+}
+
+function initialsFrom(value) {
+  return String(value || "BT")
+    .split(/\s+|-/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "BT";
 }
 
 async function fetchJson(url, token) {
