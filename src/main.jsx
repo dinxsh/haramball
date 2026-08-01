@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   createBentoWalletLink,
+  createPrivateGroup,
   estimateBentoBet,
   exchangeBentoWalletCode,
   extractEstimate,
@@ -34,11 +35,14 @@ import {
   fetchBentoReadiness,
   fetchBentoUserShares,
   fetchLeaderboardUsers,
+  fetchPrivateGroups,
   fixtureFromMarket,
   humanToBaseUnits,
   initialBentoReadiness,
   isBentoMarketEnded,
   loginBentoWallet,
+  invitePrivateGroup,
+  joinPrivateGroup,
   marketResultSummary,
   normalizeExternalLogin,
   normalizeBentoLogin,
@@ -62,6 +66,7 @@ const THEME_STORAGE_KEY = "haramball-theme";
 const SESSION_TOKEN_STORAGE_KEY = "haramball-session-token";
 const SESSION_WALLET_STORAGE_KEY = "haramball-session-wallet";
 const SESSION_ACCOUNT_STORAGE_KEY = "haramball-session-account";
+const PRIVATE_GROUP_STORAGE_KEY = "haramball-private-groups";
 const ROUND_SECONDS = 15;
 const LOCKOUT_SECONDS = Math.ceil(ROUND_SECONDS * 0.15);
 const MIN_BENTO_STAKE = 5;
@@ -115,6 +120,11 @@ function MarketApp() {
   const [profileModalOpen, setProfileModalOpen] = useState(() => !localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY));
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [activeTournamentSlug, setActiveTournamentSlug] = useState("");
+  const [privateGroups, setPrivateGroups] = useState(loadPrivateGroups);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [groupMode, setGroupMode] = useState("create");
+  const [groupDraft, setGroupDraft] = useState({ name: "", invite: "", code: "" });
+  const [activeGroupId, setActiveGroupId] = useState("");
   const [profileMode, setProfileMode] = useState("onboarding");
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || "classic");
   const [toast, setToast] = useState("");
@@ -166,6 +176,7 @@ function MarketApp() {
     [profiles],
   );
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId);
+  const activeGroup = privateGroups.find((group) => group.id === activeGroupId) || privateGroups[0] || null;
   const profileRouteUsername = usernameFromProfilePath();
   const routeProfile = profileRouteUsername
     ? dedupeProfiles(profiles).find((profile) => usernameFrom(profile.username || profile.name) === profileRouteUsername)
@@ -223,6 +234,10 @@ function MarketApp() {
   useEffect(() => {
     localStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(feed));
   }, [feed]);
+
+  useEffect(() => {
+    localStorage.setItem(PRIVATE_GROUP_STORAGE_KEY, JSON.stringify(privateGroups));
+  }, [privateGroups]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -364,6 +379,28 @@ function MarketApp() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetchPrivateGroups()
+      .then((groups) => {
+        if (alive && groups.length) setPrivateGroups(groups.map(normalizePrivateGroup));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const invite = url.searchParams.get("invite");
+    if (!invite) return;
+    setGroupDraft((draft) => ({ ...draft, code: invite.toUpperCase() }));
+    setGroupMode("join");
+    setGroupModalOpen(true);
+    setExplorerOpen(false);
   }, []);
 
   useEffect(() => {
@@ -742,6 +779,99 @@ function MarketApp() {
     showToast(existing ? "Profile updated" : "Profile created");
   };
 
+  const openGroupModal = (mode = activeGroup ? "invite" : "create") => {
+    setGroupMode(mode);
+    setGroupDraft((draft) => ({
+      ...draft,
+      name: activeGroup?.name || draft.name || "",
+      code: mode === "join" ? draft.code : activeGroup?.code || draft.code || "",
+    }));
+    setGroupModalOpen(true);
+  };
+
+  const createGroup = async (event) => {
+    event.preventDefault();
+    const name = groupDraft.name.trim();
+    if (!name) {
+      showToast("Name your private group");
+      return;
+    }
+    try {
+      const group = normalizePrivateGroup(await createPrivateGroup({ name, owner: activeProfile || { username: "host", name: "Host" } }));
+      setPrivateGroups((groups) => [group, ...groups.filter((item) => item.id !== group.id)]);
+      setActiveGroupId(group.id);
+      setGroupMode("invite");
+      setGroupDraft((draft) => ({ ...draft, name: group.name, code: group.code }));
+      showToast("Private group created");
+    } catch {
+      const group = normalizePrivateGroup({
+        id: `local-group-${Date.now()}`,
+        name,
+        code: Math.random().toString(36).slice(2, 8).toUpperCase(),
+        owner: activeProfile || { username: "host", name: "Host" },
+        members: [activeProfile || { username: "host", name: "Host" }],
+        invites: [],
+      });
+      setPrivateGroups((groups) => [group, ...groups]);
+      setActiveGroupId(group.id);
+      setGroupMode("invite");
+      setGroupDraft((draft) => ({ ...draft, name: group.name, code: group.code }));
+      showToast("Group saved locally");
+    }
+  };
+
+  const inviteToGroup = async (event) => {
+    event.preventDefault();
+    const target = groupDraft.invite.trim();
+    if (!activeGroup || !target) {
+      showToast(activeGroup ? "Add a username or email" : "Create a group first");
+      return;
+    }
+    try {
+      const group = normalizePrivateGroup(await invitePrivateGroup({ groupId: activeGroup.id, code: activeGroup.code, target }));
+      setPrivateGroups((groups) => groups.map((item) => item.id === group.id ? group : item));
+      setGroupDraft((draft) => ({ ...draft, invite: "" }));
+      showToast("Invite added");
+    } catch {
+      const group = normalizePrivateGroup({
+        ...activeGroup,
+        invites: [...activeGroup.invites, { target, type: target.includes("@") ? "email" : "username" }],
+      });
+      setPrivateGroups((groups) => groups.map((item) => item.id === activeGroup.id ? group : item));
+      setGroupDraft((draft) => ({ ...draft, invite: "" }));
+      showToast("Invite saved locally");
+    }
+  };
+
+  const joinGroup = async (event) => {
+    event.preventDefault();
+    const code = groupDraft.code.trim().toUpperCase();
+    if (!code) {
+      showToast("Enter an invite code");
+      return;
+    }
+    try {
+      const group = normalizePrivateGroup(await joinPrivateGroup({ code, member: activeProfile || { username: profileDraft.username, name: profileDraft.name } }));
+      setPrivateGroups((groups) => [group, ...groups.filter((item) => item.id !== group.id)]);
+      setActiveGroupId(group.id);
+      setGroupModalOpen(false);
+      showToast(`Joined ${group.name}`);
+    } catch {
+      showToast("Invite code not found");
+    }
+  };
+
+  const copyInviteLink = async () => {
+    if (!activeGroup) return;
+    const link = inviteLink(activeGroup.code);
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast("Invite link copied");
+    } catch {
+      showToast(link);
+    }
+  };
+
   const openTokenModal = () => {
     setTokenSearch("");
     setTokenModalOpen(true);
@@ -1012,6 +1142,7 @@ function MarketApp() {
             <MarketIntelCard analytics={marketAnalytics} error={marketAnalyticsError} shares={userShares} />
             <FeedCard feed={feed} loading={portfolioLoading} portfolio={portfolio} />
             <LeaderboardCard loading={profilesLoading} profiles={leaderboard} />
+            <PrivateGroupCard group={activeGroup} onOpen={openGroupModal} />
               </>
             ) : null}
           </section>
@@ -1059,6 +1190,7 @@ function MarketApp() {
           </div>
         </section>
 
+        <PrivateGroupCard group={activeGroup} onOpen={openGroupModal} wide />
         <ProfileActivityCard activeProfile={activeProfile} feed={feed} loading={profilesLoading} profiles={leaderboard} wide />
       </aside>
 
@@ -1102,6 +1234,21 @@ function MarketApp() {
         open={Boolean(activeTournamentSlug)}
         slug={activeTournamentSlug}
       />
+      {groupModalOpen ? (
+        <PrivateGroupModal
+          activeGroup={activeGroup}
+          draft={groupDraft}
+          inviteLink={activeGroup ? inviteLink(activeGroup.code) : ""}
+          mode={groupMode}
+          onClose={() => setGroupModalOpen(false)}
+          onCopyLink={copyInviteLink}
+          onCreate={createGroup}
+          onInvite={inviteToGroup}
+          onJoin={joinGroup}
+          setDraft={setGroupDraft}
+          setMode={setGroupMode}
+        />
+      ) : null}
 
       <div className={toast ? "toast show" : "toast"}>{toast}</div>
     </main>
@@ -1208,6 +1355,138 @@ function ProfileActivityCard({ activeProfile, fallbackToFirst = true, feed, load
         <div className="leaderboard-empty">Create a profile to track activity</div>
       )}
     </article>
+  );
+}
+
+function PrivateGroupCard({ group, onOpen, wide = false }) {
+  return (
+    <article className={`private-group-card ${wide ? "wide" : ""}`}>
+      <h2><Lock size={17} /> Private Group</h2>
+      {group ? (
+        <>
+          <div className="private-group-summary">
+            <strong>{group.name}</strong>
+            <span>{group.members.length} members - {group.invites.length} invites</span>
+            <b>{group.code}</b>
+          </div>
+          <div className="private-group-actions">
+            <button className="activate-button" onClick={() => onOpen("invite")} type="button">Invite friends</button>
+            <button className="chip" onClick={() => onOpen("join")} type="button">Join another</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>Create a private matchday group, invite friends by username or email, and share one link.</p>
+          <div className="private-group-actions">
+            <button className="activate-button" onClick={() => onOpen("create")} type="button">Create group</button>
+            <button className="chip" onClick={() => onOpen("join")} type="button">Join with code</button>
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
+function PrivateGroupModal({
+  activeGroup,
+  draft,
+  inviteLink,
+  mode,
+  onClose,
+  onCopyLink,
+  onCreate,
+  onInvite,
+  onJoin,
+  setDraft,
+  setMode,
+}) {
+  const title = mode === "join" ? "Join private group" : mode === "invite" ? "Invite friends" : "Create private group";
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="private-group-modal" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="modal-hero">
+          <div>
+            <span className="category">Private Markets</span>
+            <h2>{title}</h2>
+            <p>Build a small group for friends, usernames, email invites, and shareable links.</p>
+          </div>
+          <button className="profile-icon-button modal-close" onClick={onClose} type="button">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="private-group-tabs" role="tablist" aria-label="Private group modes">
+          {["create", "invite", "join"].map((item) => (
+            <button className={mode === item ? "active" : ""} key={item} onClick={() => setMode(item)} type="button">
+              {item}
+            </button>
+          ))}
+        </div>
+
+        {mode === "create" ? (
+          <form className="private-group-form" onSubmit={onCreate}>
+            <label>
+              <span>Group name</span>
+              <input
+                maxLength={40}
+                onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value }))}
+                placeholder="Friday football picks"
+                value={draft.name}
+              />
+            </label>
+            <button className="activate-button" type="submit">Create private group</button>
+          </form>
+        ) : null}
+
+        {mode === "invite" ? (
+          <form className="private-group-form" onSubmit={onInvite}>
+            {activeGroup ? (
+              <div className="private-group-invite-link">
+                <span>Invite link</span>
+                <strong>{inviteLink}</strong>
+                <button className="chip" onClick={onCopyLink} type="button">Copy link</button>
+              </div>
+            ) : (
+              <div className="wallet-empty">
+                <strong>No private group yet</strong>
+                <span>Create a group first, then invite friends.</span>
+              </div>
+            )}
+            <label>
+              <span>Username or email</span>
+              <input
+                maxLength={80}
+                onChange={(event) => setDraft((value) => ({ ...value, invite: event.target.value }))}
+                placeholder="@friend or friend@mail.com"
+                value={draft.invite}
+              />
+            </label>
+            <button className="activate-button" disabled={!activeGroup} type="submit">Add invite</button>
+            {activeGroup?.invites?.length ? (
+              <div className="private-group-list">
+                {activeGroup.invites.map((invite) => <span key={invite.target}>{invite.target}</span>)}
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+
+        {mode === "join" ? (
+          <form className="private-group-form" onSubmit={onJoin}>
+            <label>
+              <span>Invitation code</span>
+              <input
+                maxLength={12}
+                onChange={(event) => setDraft((value) => ({ ...value, code: event.target.value.toUpperCase() }))}
+                placeholder="Enter invite..."
+                value={draft.code}
+              />
+            </label>
+            <button className="activate-button" type="submit">Join group</button>
+          </form>
+        ) : null}
+      </section>
+    </div>
   );
 }
 
@@ -1785,6 +2064,15 @@ function loadProfiles() {
   }
 }
 
+function loadPrivateGroups() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PRIVATE_GROUP_STORAGE_KEY) || "[]");
+    return Array.isArray(stored) ? stored.map(normalizePrivateGroup) : [];
+  } catch {
+    return [];
+  }
+}
+
 function loadActivityFeed() {
   try {
     const stored = JSON.parse(localStorage.getItem(ACTIVITY_STORAGE_KEY) || "[]");
@@ -1814,6 +2102,34 @@ function normalizeProfile(profile = {}) {
     wins,
     losses,
   };
+}
+
+function normalizePrivateGroup(group = {}) {
+  return {
+    id: String(group.id || `group-${Date.now()}`),
+    code: String(group.code || "").toUpperCase() || Math.random().toString(36).slice(2, 8).toUpperCase(),
+    name: String(group.name || "Private group").trim(),
+    owner: normalizePrivateMember(group.owner),
+    members: (Array.isArray(group.members) ? group.members : []).map(normalizePrivateMember).filter((member) => member.username || member.email),
+    invites: (Array.isArray(group.invites) ? group.invites : []).map((invite) => ({
+      target: String(invite.target || invite.email || invite.username || "").trim(),
+      type: String(invite.type || (String(invite.target || "").includes("@") ? "email" : "username")),
+    })).filter((invite) => invite.target),
+  };
+}
+
+function normalizePrivateMember(member = {}) {
+  return {
+    id: String(member.id || ""),
+    name: String(member.name || "").trim(),
+    username: usernameFrom(member.username || member.name),
+    email: String(member.email || "").trim().toLowerCase(),
+  };
+}
+
+function inviteLink(code) {
+  const base = typeof window === "undefined" ? "" : `${window.location.origin}/`;
+  return `${base}?invite=${encodeURIComponent(code)}`;
 }
 
 function numberOr(value, fallbackValue, finalFallback) {

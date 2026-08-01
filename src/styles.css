@@ -1421,6 +1421,7 @@ button:disabled {
 .market-intel-card,
 .leaderboard-card,
 .profile-card,
+.private-group-card,
 .profile-activity-card {
   padding: 14px;
 }
@@ -1430,6 +1431,7 @@ button:disabled {
 .market-intel-card h2,
 .leaderboard-card h2,
 .profile-card h2,
+.private-group-card h2,
 .profile-activity-card h2,
 .architecture-panel h2 {
   position: relative;
@@ -1442,6 +1444,7 @@ button:disabled {
 }
 
 .leaderboard-card h2,
+.private-group-card h2,
 .profile-activity-card h2 {
   display: flex;
   align-items: center;
@@ -1861,6 +1864,76 @@ button:disabled {
 
 .profile-activity-card h2 {
   color: #050507;
+}
+
+.private-group-card {
+  position: relative;
+  color: #050507;
+  background: var(--panel);
+  border: 4px solid #050507;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+
+.private-group-card p {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 12px;
+  color: #3d3945;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.private-group-summary {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #e5f6e8;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+}
+
+.private-group-summary strong,
+.private-group-summary span,
+.private-group-summary b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.private-group-summary strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.private-group-summary span {
+  color: #3d3945;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.private-group-summary b {
+  width: fit-content;
+  padding: 4px 8px;
+  background: var(--yellow);
+  border: 2px solid #050507;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.private-group-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .player-profile-panel,
@@ -2378,6 +2451,108 @@ button:disabled {
   border: 5px solid #050507;
   border-radius: 8px;
   box-shadow: 12px 12px 0 rgba(34, 197, 94, 0.78), 20px 20px 0 rgba(255, 212, 71, 0.5);
+}
+
+.private-group-modal {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  color: #050507;
+  background: var(--panel);
+  border: 5px solid #050507;
+  border-radius: 8px;
+  box-shadow: 12px 12px 0 rgba(56, 189, 248, 0.78), 20px 20px 0 rgba(255, 212, 71, 0.48);
+}
+
+.private-group-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 14px 14px 0;
+}
+
+.private-group-tabs button {
+  min-height: 40px;
+  color: #050507;
+  background: #fffdf2;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.private-group-tabs button.active {
+  background: var(--cyan);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #050507;
+}
+
+.private-group-form {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.private-group-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.private-group-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px;
+  color: #050507;
+  background: #fffdf2;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.private-group-invite-link {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #e8f9fc;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+}
+
+.private-group-invite-link span,
+.private-group-list span {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.private-group-invite-link strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.private-group-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.private-group-list span {
+  padding: 6px 9px;
+  background: #fffdf2;
+  border: 2px solid #050507;
+  border-radius: 999px;
 }
 
 .modal-hero {

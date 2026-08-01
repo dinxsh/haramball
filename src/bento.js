@@ -145,6 +145,26 @@ export async function fetchLeaderboardUsers() {
   return payload.users || [];
 }
 
+export async function fetchPrivateGroups() {
+  const payload = await fetchJson("/api/groups");
+  return payload.groups || [];
+}
+
+export async function createPrivateGroup({ name, owner }) {
+  const payload = await postJson("/api/groups", { action: "create", name, owner });
+  return payload.group;
+}
+
+export async function invitePrivateGroup({ groupId, code, target }) {
+  const payload = await postJson("/api/groups", { action: "invite", groupId, code, invite: { target } });
+  return payload.group;
+}
+
+export async function joinPrivateGroup({ code, member }) {
+  const payload = await postJson("/api/groups", { action: "join", code, member });
+  return payload.group;
+}
+
 const TERMINAL_MARKET_STATUSES = new Set([
   "cancelled",
   "canceled",
