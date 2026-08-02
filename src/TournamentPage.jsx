@@ -13,7 +13,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { enterTournament, fetchTournamentDetail, fetchTournamentStatus, formatExplorerDate, formatExplorerPrize } from "./explorer.js";
+import { enterTournament, fetchTournamentDetail, fetchTournamentStatus, formatExplorerDate, formatExplorerPrize, readCachedTournamentDetail } from "./explorer.js";
 
 const SESSION_TOKEN_STORAGE_KEY = "haramball-session-token";
 const SESSION_WALLET_STORAGE_KEY = "haramball-session-wallet";
@@ -31,8 +31,8 @@ export function TournamentDialog({ onClose, open, slug }) {
 }
 
 function TournamentRoute({ slug, onClose, dialog = false }) {
-  const [tournament, setTournament] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [tournament, setTournament] = useState(() => readCachedTournamentDetail(slug));
+  const [loading, setLoading] = useState(() => !readCachedTournamentDetail(slug));
   const [error, setError] = useState("");
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
@@ -45,8 +45,10 @@ function TournamentRoute({ slug, onClose, dialog = false }) {
 
   useEffect(() => {
     let active = true;
-    const firstLoad = !tournament || tournament.slug !== slug;
-    if (firstLoad) setTournament(null);
+    const cached = readCachedTournamentDetail(slug);
+    const firstLoad = !cached && (!tournament || tournament.slug !== slug);
+    if (cached) setTournament(cached);
+    else if (firstLoad) setTournament(null);
     setError("");
     setLeaderboardError("");
     setLoading(firstLoad);

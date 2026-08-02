@@ -1,3 +1,5 @@
+import { normalizeTournamentDetail } from "./_tournament.js";
+
 const TERMINAL_STATUSES = new Set(["completed", "ended", "resolved", "settled"]);
 const REJECTED_STATUSES = new Set(["canceled", "cancelled", "discarded"]);
 const TEST_RECORD_PATTERN = /\b(?:e2e|sdk|test|demo|mock)\b/i;
@@ -55,7 +57,20 @@ export async function buildExplorerCatalog({
       enrichment = null;
     }
 
-    return normalizeExplorerTournament(row, enrichment, now);
+    const item = normalizeExplorerTournament(row, enrichment, now);
+    if (!item) return null;
+
+    return {
+      ...item,
+      ...(enrichment ? {
+        detailPreview: normalizeTournamentDetail({
+          item,
+          source: row,
+          detail: enrichment,
+          leaderboard: null,
+        }),
+      } : {}),
+    };
   });
 
   return items.filter(Boolean).sort(compareExplorerItems);

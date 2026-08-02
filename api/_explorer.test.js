@@ -83,9 +83,11 @@ test("curates real football and F1 records without test or canceled data", async
   assert.equal(items[0].status, "upcoming");
   assert.equal(items[0].nextEvent.gpName, "Dutch Grand Prix");
   assert.equal(items[0].nextEvent.raceTime, "2026-08-23T12:00:00.000Z");
+  assert.equal(items[0].detailPreview.rounds[0].name, "Dutch Grand Prix");
   assert.match(items[0].searchText, /zandvoort/i);
   assert.equal(items[1].status, "ended");
   assert.equal(items[1].nextEvent.title, "France vs England");
+  assert.equal(items[1].detailPreview.stages[0].fixtures[0].title, "France vs England");
   assert.match(items[1].searchText, /france england/i);
 });
 

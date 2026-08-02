@@ -255,6 +255,44 @@ test("uses fresh session Explorer cache before making a network request", async 
   }
 });
 
+test("uses persistent Explorer cache across reloads before making a network request", async () => {
+  explorerModule.resetExplorerCache();
+
+  const originalFetch = globalThis.fetch;
+  const originalSessionStorage = globalThis.sessionStorage;
+  const originalLocalStorage = globalThis.localStorage;
+  const local = new Map();
+  globalThis.sessionStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  };
+  globalThis.localStorage = {
+    getItem: (key) => local.get(key) || null,
+    setItem: (key, value) => local.set(key, String(value)),
+    removeItem: (key) => local.delete(key),
+  };
+  globalThis.fetch = async () => {
+    throw new Error("network should not be needed for persistent cache");
+  };
+
+  try {
+    local.set("haramball-explorer-items-v2", JSON.stringify({
+      savedAt: Date.now(),
+      items: [items[1]],
+    }));
+
+    assert.deepEqual(await explorerModule.fetchExplorerItems(), [items[1]]);
+  } finally {
+    explorerModule.resetExplorerCache();
+    globalThis.fetch = originalFetch;
+    if (originalSessionStorage === undefined) delete globalThis.sessionStorage;
+    else globalThis.sessionStorage = originalSessionStorage;
+    if (originalLocalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalLocalStorage;
+  }
+});
+
 test("a failed prefetch leaves the modal load free to retry", async () => {
   assert.equal(typeof explorerModule.resetExplorerCache, "function");
   explorerModule.resetExplorerCache();
@@ -327,6 +365,51 @@ test("dedupes and caches tournament detail requests for bracket previews", async
     assert.deepEqual(await expand, { slug: "f1-2026-grid-predictor-f1season" });
 
     await explorerModule.fetchTournamentDetail("f1-2026-grid-predictor-f1season");
+    assert.equal(fetchCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    explorerModule.resetExplorerCache();
+  }
+});
+
+test("seeds tournament details from Explorer catalog previews", async () => {
+  explorerModule.resetExplorerCache();
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = async (url) => {
+    fetchCount += 1;
+    if (String(url).startsWith("/api/tournament")) {
+      throw new Error("detail endpoint should not be needed after catalog preview");
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        items: [{
+          ...items[0],
+          slug: "f1-2026-grid-predictor-f1season",
+          detailPreview: {
+            slug: "f1-2026-grid-predictor-f1season",
+            name: "F1 2026 Grid Predictor",
+            kind: "f1",
+            rounds: [{ id: "dutch-gp", name: "Dutch Grand Prix" }],
+          },
+        }],
+      }),
+    };
+  };
+
+  try {
+    await explorerModule.fetchExplorerItems();
+    assert.equal(fetchCount, 1);
+    assert.deepEqual(
+      await explorerModule.fetchTournamentDetail("f1-2026-grid-predictor-f1season"),
+      {
+        slug: "f1-2026-grid-predictor-f1season",
+        name: "F1 2026 Grid Predictor",
+        kind: "f1",
+        rounds: [{ id: "dutch-gp", name: "Dutch Grand Prix" }],
+      },
+    );
     assert.equal(fetchCount, 1);
   } finally {
     globalThis.fetch = originalFetch;

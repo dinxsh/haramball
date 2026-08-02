@@ -14,6 +14,7 @@ import {
 import {
   EXPLORER_SORTS,
   defaultExplorerStatus,
+  detailPreviewFromItem,
   explorerSports,
   fetchExplorerItems,
   fetchTournamentDetail,
@@ -57,6 +58,12 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
     [items, query, sort, sport, status],
   );
   const showInitialSkeleton = shouldShowExplorerSkeleton({ open, loaded, error, loading });
+  const selectedPreview = useMemo(
+    () => detailPreviewFromItem(items.find((item) => item.slug === selectedSlug)),
+    [items, selectedSlug],
+  );
+  const selectedDisplayTournament = selectedTournament || selectedPreview;
+  const selectedDisplayLoading = selectedTournamentLoading && !selectedDisplayTournament;
 
   const load = async ({ refresh = false } = {}) => {
     if (loading || (loaded && !refresh)) return;
@@ -131,7 +138,9 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
     }
 
     let active = true;
-    setExpandedTournamentLoading(true);
+    const preview = detailPreviewFromItem(item);
+    setExpandedTournament(preview);
+    setExpandedTournamentLoading(!preview);
     setExpandedTournamentError("");
 
     fetchTournamentDetail(item.slug)
@@ -162,7 +171,9 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
     }
 
     let active = true;
-    setSelectedTournamentLoading(true);
+    const preview = detailPreviewFromItem(items.find((item) => item.slug === selectedSlug));
+    setSelectedTournament(preview);
+    setSelectedTournamentLoading(!preview);
     setSelectedTournamentError("");
 
     fetchTournamentDetail(selectedSlug)
@@ -182,7 +193,7 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
     return () => {
       active = false;
     };
-  }, [selectedSlug]);
+  }, [selectedSlug, items]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -356,16 +367,16 @@ export default function ExplorerModal({ initialStatus = "All", onClose, onEnterT
             <div className="explorer-selected-panel-head">
               <div>
                 <span className="explorer-selected-kicker">Selected competition</span>
-                <h3>{selectedTournament?.name || "Loading competition..."}</h3>
+                <h3>{selectedDisplayTournament?.name || "Loading competition..."}</h3>
               </div>
               <button className="explorer-selected-close" onClick={() => { setSelectedSlug(""); setExpandedId(""); }} type="button">
                 Close
               </button>
             </div>
-            {selectedTournamentLoading ? <span className="explorer-detail-empty">Loading schedule and timings...</span> : null}
+            {selectedDisplayLoading ? <span className="explorer-detail-empty">Loading schedule and timings...</span> : null}
             {selectedTournamentError ? <span className="explorer-detail-empty">{selectedTournamentError}</span> : null}
-            {!selectedTournamentLoading && !selectedTournamentError && selectedTournament ? (
-              <SelectedTournamentDetails onEnterTournament={onEnterTournament} tournament={selectedTournament} />
+            {!selectedDisplayLoading && !selectedTournamentError && selectedDisplayTournament ? (
+              <SelectedTournamentDetails onEnterTournament={onEnterTournament} tournament={selectedDisplayTournament} />
             ) : null}
           </div>
         ) : null}
@@ -391,6 +402,9 @@ function ExplorerCard({
   const showSchedule = !isEnded && expanded;
   const hasStats = Boolean(item.format || item.entryCount > 0 || prize);
   const dateCaption = isEnded ? "Final event" : item.status === "live" ? "In progress" : item.status === "listed" ? "Listed" : "Next event";
+  const previewTournament = detailPreviewFromItem(item);
+  const scheduleTournament = expandedTournament || previewTournament;
+  const scheduleLoading = expandedTournamentLoading && !scheduleTournament;
 
   return (
     <article className={`explorer-card ${item.status} ${showSchedule ? "expanded" : ""}`}>
@@ -448,10 +462,10 @@ function ExplorerCard({
                 <Gauge size={12} />
                 Bracket preview
               </div>
-              {expandedTournamentLoading ? <span className="explorer-detail-empty">Loading round bracket...</span> : null}
+              {scheduleLoading ? <span className="explorer-detail-empty">Loading round bracket...</span> : null}
               {expandedTournamentError ? <span className="explorer-detail-empty">{expandedTournamentError}</span> : null}
-              {expandedTournament?.rounds?.length ? <F1Rounds rounds={expandedTournament.rounds} /> : null}
-              {!expandedTournamentLoading && !expandedTournamentError && !expandedTournament?.rounds?.length ? <F1Schedule event={item.nextEvent} /> : null}
+              {scheduleTournament?.rounds?.length ? <F1Rounds rounds={scheduleTournament.rounds} /> : null}
+              {!scheduleLoading && !expandedTournamentError && !scheduleTournament?.rounds?.length ? <F1Schedule event={item.nextEvent} /> : null}
             </>
           ) : (
             <TournamentSchedule event={item.nextEvent} />

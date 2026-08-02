@@ -21,8 +21,10 @@ export const EXPLORER_SORTS = [
 
 const TOKEN_DECIMALS = 18n;
 const EXPLORER_SESSION_CACHE_KEY = "haramball-explorer-items-v1";
+const EXPLORER_LOCAL_CACHE_KEY = "haramball-explorer-items-v2";
 const TOURNAMENT_DETAIL_SESSION_CACHE_PREFIX = "haramball-tournament-detail-v1:";
 const EXPLORER_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const EXPLORER_LOCAL_CACHE_TTL_MS = 30 * 60 * 1000;
 let explorerCache = null;
 let explorerRequest = null;
 const tournamentDetailCache = new Map();
@@ -38,6 +40,7 @@ export function fetchExplorerItems({ refresh = false } = {}) {
     const sessionItems = readCachedExplorerItems();
     if (sessionItems.length) {
       explorerCache = sessionItems;
+      seedTournamentDetailsFromItems(sessionItems);
       return Promise.resolve(sessionItems);
     }
   }
@@ -45,6 +48,7 @@ export function fetchExplorerItems({ refresh = false } = {}) {
 
   const request = requestExplorerItems().then((items) => {
     explorerCache = items;
+    seedTournamentDetailsFromItems(items);
     writeCachedExplorerItems(items);
     return items;
   }).finally(() => {
@@ -68,11 +72,18 @@ export function resetExplorerCache() {
 }
 
 export function readCachedExplorerItems({ now = Date.now() } = {}) {
+  const sessionItems = readCachedExplorerItemsFromStorage("sessionStorage", EXPLORER_SESSION_CACHE_KEY, EXPLORER_SESSION_CACHE_TTL_MS, now);
+  if (sessionItems.length) return sessionItems;
+  return readCachedExplorerItemsFromStorage("localStorage", EXPLORER_LOCAL_CACHE_KEY, EXPLORER_LOCAL_CACHE_TTL_MS, now);
+}
+
+function readCachedExplorerItemsFromStorage(storageName, key, ttl, now) {
   try {
-    if (typeof sessionStorage === "undefined") return [];
-    const cached = JSON.parse(sessionStorage.getItem(EXPLORER_SESSION_CACHE_KEY) || "null");
+    const storage = globalThis?.[storageName];
+    if (!storage) return [];
+    const cached = JSON.parse(storage.getItem(key) || "null");
     if (!cached || !Array.isArray(cached.items)) return [];
-    if (now - Number(cached.savedAt || 0) > EXPLORER_SESSION_CACHE_TTL_MS) return [];
+    if (now - Number(cached.savedAt || 0) > ttl) return [];
     return cached.items;
   } catch {
     return [];
@@ -80,21 +91,18 @@ export function readCachedExplorerItems({ now = Date.now() } = {}) {
 }
 
 function writeCachedExplorerItems(items) {
-  try {
-    if (typeof sessionStorage === "undefined" || !Array.isArray(items)) return;
-    sessionStorage.setItem(EXPLORER_SESSION_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), items }));
-  } catch {
-    // Cache is an optimization only; private browsing or quota errors should not block Explorer.
-  }
+  if (!Array.isArray(items)) return;
+  const payload = JSON.stringify({ savedAt: Date.now(), items });
+  try { if (typeof sessionStorage !== "undefined") sessionStorage.setItem(EXPLORER_SESSION_CACHE_KEY, payload); } catch {}
+  try { if (typeof localStorage !== "undefined") localStorage.setItem(EXPLORER_LOCAL_CACHE_KEY, payload); } catch {}
 }
 
 function clearCachedExplorerItems() {
-  try {
-    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(EXPLORER_SESSION_CACHE_KEY);
-  } catch {}
+  try { if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(EXPLORER_SESSION_CACHE_KEY); } catch {}
+  try { if (typeof localStorage !== "undefined") localStorage.removeItem(EXPLORER_LOCAL_CACHE_KEY); } catch {}
 }
 
-function readCachedTournamentDetail(slug, { now = Date.now() } = {}) {
+export function readCachedTournamentDetail(slug, { now = Date.now() } = {}) {
   try {
     if (typeof sessionStorage === "undefined" || !slug) return null;
     const cached = JSON.parse(sessionStorage.getItem(`${TOURNAMENT_DETAIL_SESSION_CACHE_PREFIX}${slug}`) || "null");
@@ -155,9 +163,10 @@ export function preloadTournamentDetail(slug) {
 export async function fetchTournamentDetail(slug, pagination) {
   const cacheable = !pagination;
   if (cacheable) {
-    const cached = tournamentDetailCache.get(slug) || readCachedTournamentDetail(slug);
+    const cached = tournamentDetailCache.get(slug) || readCachedTournamentDetail(slug) || detailPreviewFromExplorerCache(slug);
     if (cached) {
       tournamentDetailCache.set(slug, cached);
+      writeCachedTournamentDetail(slug, cached);
       return cached;
     }
     if (tournamentDetailRequests.has(slug)) return tournamentDetailRequests.get(slug);
@@ -186,6 +195,27 @@ export async function fetchTournamentDetail(slug, pagination) {
 
   if (cacheable) tournamentDetailRequests.set(slug, request);
   return request;
+}
+
+function seedTournamentDetailsFromItems(items = []) {
+  items.forEach((item) => {
+    const detail = detailPreviewFromItem(item);
+    if (!detail?.slug) return;
+    tournamentDetailCache.set(detail.slug, detail);
+    writeCachedTournamentDetail(detail.slug, detail);
+  });
+}
+
+function detailPreviewFromExplorerCache(slug) {
+  const memoryPreview = (explorerCache || []).find((item) => item.slug === slug);
+  const cachedPreview = memoryPreview || readCachedExplorerItems().find((item) => item.slug === slug);
+  return detailPreviewFromItem(cachedPreview);
+}
+
+export function detailPreviewFromItem(item = {}) {
+  const preview = item?.detailPreview || null;
+  if (!preview) return null;
+  return { ...preview, slug: preview.slug || item.slug };
 }
 
 export async function fetchTournamentStatus(slug, { token, wallet } = {}) {
