@@ -4280,9 +4280,87 @@ button:disabled {
   padding: 16px;
 }
 
+.market-creator-body.is-preview-step {
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1fr);
+}
+
 .market-creator-fields {
   display: grid;
   gap: 12px;
+}
+
+.market-creator-review {
+  align-self: start;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  color: #050507;
+  background: #fffdf2;
+  border: 4px solid #050507;
+  border-radius: 6px;
+  box-shadow: var(--mini-shadow);
+}
+
+.market-creator-review .back-link {
+  margin: 0;
+}
+
+.market-creator-review h3 {
+  margin: 8px 0 0;
+  font-family: Bangers, Inter, sans-serif;
+  font-size: 34px;
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.market-creator-review p {
+  margin: 8px 0 0;
+  color: #3d3945;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.market-review-grid,
+.market-review-times {
+  display: grid;
+  gap: 10px;
+}
+
+.market-review-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.market-review-grid span,
+.market-review-times span {
+  min-width: 0;
+  padding: 10px;
+  background: #dff9ff;
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+}
+
+.market-review-grid small,
+.market-review-times small {
+  display: block;
+  color: #3d3945;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.market-review-grid b,
+.market-review-times b {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #050507;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .market-creator-fields label {
@@ -4349,11 +4427,11 @@ button:disabled {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: #151515;
-  color: #fffdf2;
+  background: var(--panel);
+  color: #050507;
   border: 4px solid #050507;
-  border-radius: 8px;
-  box-shadow: var(--mini-shadow);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
 }
 
 .market-create-preview > span,
@@ -4361,9 +4439,9 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #d7dfd7;
+  color: #3d3945;
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 950;
   text-transform: uppercase;
 }
 
@@ -4372,11 +4450,16 @@ button:disabled {
   place-items: center;
   min-height: 150px;
   overflow: hidden;
-  color: #76839c;
-  background: #080808;
-  border-radius: 8px;
+  color: #3d3945;
+  background:
+    linear-gradient(90deg, transparent 0 48%, rgba(255, 255, 255, 0.28) 48% 52%, transparent 52% 100%) center / 120px 100%,
+    radial-gradient(circle at 25% 30%, rgba(255, 212, 71, 0.34) 0 2px, transparent 3px) 0 0 / 12px 12px,
+    linear-gradient(135deg, #10291a, #07160e);
+  border: 3px solid #050507;
+  border-radius: 6px;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 950;
+  text-transform: uppercase;
 }
 
 .market-create-image img {
@@ -4387,8 +4470,11 @@ button:disabled {
 
 .market-create-preview h3 {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.1;
+  font-family: Bangers, Inter, sans-serif;
+  color: #050507;
+  font-size: 34px;
+  line-height: 0.95;
+  letter-spacing: 0;
 }
 
 .market-create-odds,
@@ -4402,6 +4488,7 @@ button:disabled {
 .market-create-odds b {
   color: var(--lime);
   font-size: 12px;
+  text-shadow: 1px 1px 0 #050507;
 }
 
 .market-create-odds b:last-child {
@@ -4410,7 +4497,7 @@ button:disabled {
 
 .market-create-odds i {
   height: 12px;
-  background: repeating-linear-gradient(90deg, #262626 0 3px, transparent 3px 8px);
+  background: repeating-linear-gradient(90deg, #050507 0 3px, transparent 3px 8px);
 }
 
 .market-create-outcomes {
@@ -4421,17 +4508,19 @@ button:disabled {
   min-width: 0;
   overflow: hidden;
   padding: 10px;
-  border-radius: 8px;
-  background: rgba(34, 197, 94, 0.18);
-  color: var(--lime);
+  background: var(--lime);
+  border: 3px solid #050507;
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 #050507;
+  color: #050507;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .market-create-outcomes strong:last-child {
-  background: rgba(255, 75, 75, 0.2);
-  color: var(--red);
+  background: var(--red);
+  color: #050507;
 }
 
 .private-group-tabs {

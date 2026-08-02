@@ -2494,7 +2494,21 @@ function ProfileActivityCard({ activeProfile, fallbackToFirst = true, feed, load
 
 function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
   const yesNo = draft.type !== "versus";
+  const [step, setStep] = useState("details");
   const update = (patch) => setDraft((value) => ({ ...value, ...patch }));
+  const goToPreview = (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    setStep("preview");
+  };
+  const submitFromPreview = (event) => {
+    event.preventDefault();
+    onSubmit(event);
+  };
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -2503,14 +2517,15 @@ function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
           <div>
             <span className="category">Bento Creator</span>
             <h2>Create New Market</h2>
-            <p>Create a Bento YES/NO or versus market from haramball.xyz.</p>
+            <p>{step === "details" ? "Enter the market details first, then review the themed preview before submission." : "Confirm the preview and submit this market to Bento."}</p>
           </div>
           <button className="profile-icon-button modal-close" disabled={creating} onClick={onClose} type="button">
             <X size={18} />
           </button>
         </div>
 
-        <form className="market-creator-body" onSubmit={onSubmit}>
+        <form className={`market-creator-body ${step === "preview" ? "is-preview-step" : ""}`} onSubmit={step === "details" ? goToPreview : submitFromPreview}>
+          {step === "details" ? (
           <div className="market-creator-fields">
             <div className="market-type-toggle" aria-label="Market type">
               {[
@@ -2540,6 +2555,7 @@ function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
                 maxLength={200}
                 onChange={(event) => update({ question: event.target.value })}
                 placeholder="Will India win their next T20?"
+                required
                 value={draft.question}
               />
             </label>
@@ -2554,11 +2570,11 @@ function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
             <div className="market-option-grid">
               <label>
                 <span>{yesNo ? "Yes label" : "Option A"}</span>
-                <input maxLength={40} onChange={(event) => update({ optionA: event.target.value })} value={draft.optionA} />
+                <input maxLength={40} onChange={(event) => update({ optionA: event.target.value })} required value={draft.optionA} />
               </label>
               <label>
                 <span>{yesNo ? "No label" : "Option B"}</span>
-                <input maxLength={40} onChange={(event) => update({ optionB: event.target.value })} value={draft.optionB} />
+                <input maxLength={40} onChange={(event) => update({ optionB: event.target.value })} required value={draft.optionB} />
               </label>
             </div>
 
@@ -2568,6 +2584,7 @@ function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
                 maxLength={1000}
                 onChange={(event) => update({ description: event.target.value })}
                 placeholder="Resolve YES if the official result source confirms the outcome before the end time."
+                required
                 value={draft.description}
               />
             </label>
@@ -2575,11 +2592,11 @@ function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
             <div className="market-option-grid">
               <label>
                 <span>Start</span>
-                <input onChange={(event) => update({ startTime: event.target.value })} type="datetime-local" value={draft.startTime} />
+                <input onChange={(event) => update({ startTime: event.target.value })} required type="datetime-local" value={draft.startTime} />
               </label>
               <label>
                 <span>End</span>
-                <input onChange={(event) => update({ endTime: event.target.value })} type="datetime-local" value={draft.endTime} />
+                <input onChange={(event) => update({ endTime: event.target.value })} required type="datetime-local" value={draft.endTime} />
               </label>
             </div>
 
@@ -2605,10 +2622,37 @@ function MarketCreatorModal({ creating, draft, onClose, onSubmit, setDraft }) {
             </div>
 
             <button className="activate-button" disabled={creating} type="submit">
-              <Plus size={17} />
-              {creating ? "Creating..." : "Create on Bento"}
+              <Compass size={17} />
+              Review Preview
             </button>
           </div>
+          ) : (
+            <div className="market-creator-review">
+              <button className="back-link" disabled={creating} onClick={() => setStep("details")} type="button">
+                <ArrowLeft size={15} />
+                Edit details
+              </button>
+              <div>
+                <span className="category">Ready to submit</span>
+                <h3>{draft.question || "Market Name"}</h3>
+                <p>{draft.description}</p>
+              </div>
+              <div className="market-review-grid">
+                <span><small>Type</small><b>{yesNo ? "YES/NO" : "Versus"}</b></span>
+                <span><small>Category</small><b>{draft.category}</b></span>
+                <span><small>Collateral</small><b>{draft.collateralMode.toUpperCase()}</b></span>
+                <span><small>Access</small><b>{draft.privacyAccess}</b></span>
+              </div>
+              <div className="market-review-times">
+                <span><small>Start</small><b>{formatLocalDateTime(draft.startTime)}</b></span>
+                <span><small>End</small><b>{formatLocalDateTime(draft.endTime)}</b></span>
+              </div>
+              <button className="activate-button" disabled={creating} type="submit">
+                <Plus size={17} />
+                {creating ? "Submitting..." : "Submit to Bento"}
+              </button>
+            </div>
+          )}
 
           <aside className="market-create-preview">
             <span>{draft.privacyAccess === "private" ? <Lock size={14} /> : <Globe size={14} />} {draft.privacyAccess} Market</span>
@@ -3442,6 +3486,17 @@ function titleCase(value) {
 function localInputToIso(value) {
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : "";
+}
+
+function formatLocalDateTime(value) {
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return "Time TBA";
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function loadActivityFeed() {
