@@ -2693,18 +2693,6 @@ button:disabled {
   background: #fff5cf;
 }
 
-.app-shell.is-ended-market .match-hero .ended-badge,
-.app-shell.is-ended-market .market-context.is-ended,
-.app-shell.is-ended-market .cycle-card.is-ended .timer-label,
-.app-shell.is-ended-market .cycle-card.is-ended .question-block,
-.app-shell.is-ended-market .cycle-card.is-ended .ended-market-notice {
-  display: none;
-}
-
-.app-shell.is-ended-market .cycle-card.is-ended .timer-block {
-  padding-bottom: 16px;
-}
-
 .cycle-card::after,
 .settlement-card::after,
 .feed-card::after,
@@ -2720,6 +2708,44 @@ button:disabled {
   background: radial-gradient(circle, rgba(5, 5, 7, 0.14) 0 1px, transparent 1px) 0 0 / 6px 6px;
   mix-blend-mode: multiply;
   opacity: 0.38;
+}
+
+.product-mode-notice {
+  margin-top: 14px;
+}
+
+.product-mode-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.product-mode-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.product-mode-actions .activate-button,
+.product-mode-actions .create-market-panel-button {
+  width: 100%;
+}
+
+.status-grid.product-status-grid {
+  grid-template-columns: 1fr;
+}
+
+.product-status-grid .status-card {
+  min-height: 0;
+  padding: 13px;
+}
+
+.product-status-grid .status-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.product-flow-panel {
+  padding: 15px;
 }
 
 .skeleton-line,
@@ -2880,6 +2906,10 @@ button:disabled {
   font-size: 11px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.ended-market-notice.product-mode-notice {
+  margin-top: 14px;
 }
 
 .ended-result-meta {

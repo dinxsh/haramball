@@ -188,13 +188,12 @@ function MarketApp() {
   const lockoutActive = secondsRemaining <= LOCKOUT_SECONDS;
   const progressPercent = Math.min(100, Math.max(0, (elapsedSeconds / ROUND_SECONDS) * 100));
   const marketTitle = market?.title || (readiness.configured ? "No match markets returned" : "Market board needs setup");
-  const endedMarketTitle = marketEnded ? finalResult.title : marketTitle;
   const marketBoardLoading = marketsLoading && !market;
-  const displayedMarketTitle = marketBoardLoading ? "Opening Explorer" : endedMarketTitle;
+  const displayedMarketTitle = marketBoardLoading ? "Opening Explorer" : marketEnded ? "Explore active tournaments" : marketTitle;
   const displayedMarketBody = marketBoardLoading
     ? "The verified tournament calendar is opening while the match board refreshes."
     : marketEnded
-      ? finalResult.detail
+      ? "Open verified Bento tournaments, create a market, or invite a private group from the same home screen."
       : "One random side is chosen for a strict 15-second window.";
   const marketBody = market
     ? "Preview your ticket, then lock it in."
@@ -1167,8 +1166,8 @@ function MarketApp() {
             <article className={`cycle-card ${marketEnded ? "is-ended" : "is-action"}`}>
               <div className="timer-block">
                 <div className="timer-label">
-                  <span>{marketEnded ? "Match final" : lockoutActive ? "Market locked" : "Lock closes in"}</span>
-                  <b>{marketEnded ? "Final" : `${secondsRemaining}s`}</b>
+                  <span>{marketEnded ? "Product ready" : lockoutActive ? "Market locked" : "Lock closes in"}</span>
+                  <b>{marketEnded ? "Explore" : `${secondsRemaining}s`}</b>
                 </div>
                 <div className="progress-track">
                   <span className={marketEnded || lockoutActive ? "is-locked" : ""} style={{ width: marketEnded ? "100%" : `${progressPercent}%` }} />
@@ -1234,18 +1233,12 @@ function MarketApp() {
               </div>
                 </>
               ) : (
-                <div className="ended-market-notice" role="status">
-                  <Lock size={20} />
+                <div className="ended-market-notice product-mode-notice" role="status">
+                  <Compass size={20} />
                   <div>
-                    <small>{finalResult.eyebrow}</small>
-                    <strong>{finalResult.title}</strong>
-                    {finalResult.match || finalResult.score ? (
-                      <span className="ended-result-meta">
-                        {finalResult.match ? <b>{finalResult.match}</b> : null}
-                        {finalResult.score ? <b>{finalResult.score}</b> : null}
-                      </span>
-                    ) : null}
-                    {finalResult.match || finalResult.score ? null : <span>{finalResult.detail}</span>}
+                    <small>Next actions</small>
+                    <strong>Calendar, markets, and groups are ready.</strong>
+                    <span>Completed markets stay readable, while the product tools stay one tap away.</span>
                   </div>
                 </div>
               )}
@@ -1268,7 +1261,19 @@ function MarketApp() {
             <LeaderboardCard loading={profilesLoading} profiles={leaderboard} />
             <PrivateGroupCard group={activeGroup} onOpen={openGroupModal} />
               </>
-            ) : null}
+            ) : (
+              <ProductModeStack
+                activeGroup={activeGroup}
+                activeProfile={activeProfile}
+                feed={feed}
+                loading={profilesLoading}
+                onCreateMarket={openMarketCreator}
+                onExplore={() => setExplorerOpen(true)}
+                onOpenGroup={openGroupModal}
+                profiles={leaderboard}
+                statusCards={statusCards}
+              />
+            )}
           </section>
         </div>
       </section>
@@ -3085,6 +3090,63 @@ function MarketIntelCard({ analytics, error, shares }) {
         </span>
       </div>
     </article>
+  );
+}
+
+function ProductModeStack({
+  activeGroup,
+  activeProfile,
+  feed,
+  loading,
+  onCreateMarket,
+  onExplore,
+  onOpenGroup,
+  profiles,
+  statusCards,
+}) {
+  return (
+    <div className="product-mode-stack" aria-label="Product actions">
+      <section className="product-mode-actions">
+        <button className="activate-button" onClick={onExplore} type="button">
+          <Compass size={17} />
+          Explore tournaments
+        </button>
+        <button className="create-market-panel-button compact" onClick={onCreateMarket} type="button">
+          <Plus size={17} />
+          Create new market
+        </button>
+      </section>
+
+      <section className="status-grid product-status-grid">
+        {statusCards.map((card) => (
+          <article className="status-card" key={card.label}>
+            <span className="status-icon">{card.icon}</span>
+            <small>{card.label}</small>
+            <strong>{card.value}</strong>
+            <p>{card.body}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="architecture-panel product-flow-panel">
+        <h2>Matchday Flow</h2>
+        <div className="rail-item">
+          <BadgeDollarSign size={18} />
+          <span>Live market board loads before wallet connection</span>
+        </div>
+        <div className="rail-item">
+          <Zap size={18} />
+          <span>One wallet signature opens the market account</span>
+        </div>
+        <div className="rail-item">
+          <Trophy size={18} />
+          <span>Preview, lock, and track every ticket clearly</span>
+        </div>
+      </section>
+
+      <PrivateGroupCard group={activeGroup} onOpen={onOpenGroup} />
+      <ProfileActivityCard activeProfile={activeProfile} feed={feed} loading={loading} profiles={profiles} />
+    </div>
   );
 }
 
