@@ -35,6 +35,7 @@ import {
   exchangeBentoWalletCode,
   extractEstimate,
   fetchBentoFeeds,
+  fetchBentoMarket,
   fetchBentoMarketAnalytics,
   fetchBentoMarkets,
   fetchBentoPortfolio,
@@ -53,6 +54,11 @@ import {
   invitePrivateGroup,
   joinPrivateGroup,
   marketResultSummary,
+  marketIndexFromDuelId,
+  marketDepthRows,
+  marketDetailMetrics,
+  marketOutcomeRows,
+  marketPriceHistory,
   normalizeExternalLogin,
   normalizeBentoLogin,
   placeBentoBet,
@@ -500,6 +506,23 @@ function MarketApp() {
   useEffect(() => {
     if (!markets.length) return;
     setMarketIndex((currentIndex) => Math.min(currentIndex, markets.length - 1));
+  }, [markets]);
+
+  useEffect(() => {
+    if (!markets.length) return;
+
+    const url = new URL(window.location.href);
+    const queryMarket = url.searchParams.get("market");
+    const querySide = url.searchParams.get("side");
+    if (!queryMarket) return;
+
+    setMarketIndex(marketIndexFromDuelId(markets, queryMarket));
+    if (querySide === "yes") setPick(0);
+    if (querySide === "no") setPick(1);
+
+    url.searchParams.delete("market");
+    url.searchParams.delete("side");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, [markets]);
 
   useEffect(() => {
@@ -1132,7 +1155,7 @@ function MarketApp() {
                     {marketEnded ? finalResult.match || fixture.label : market.title && market.title !== fixture.label ? market.title : fixture.label}
                   </b>
                 </div>
-                <b>{[leagueName, marketEnded ? "Ended" : "15s round"].filter(Boolean).join(" - ")}</b>
+                <a href={`/markets/${encodeURIComponent(market.duelId)}`}>{[leagueName, marketEnded ? "Ended" : "Market page"].filter(Boolean).join(" - ")}</a>
               </div>
             ) : null}
 
@@ -1371,11 +1394,197 @@ function MarketApp() {
 
 function App() {
   const tournamentSlug = tournamentSlugFromPath(window.location.pathname);
+  const marketId = marketIdFromPath(window.location.pathname);
   if (window.location.pathname === "/portfolio") return <PortfolioPage />;
   if (window.location.pathname === "/leaderboard") return <LeaderboardPage />;
   if (window.location.pathname === "/live" || window.location.pathname === "/feeds") return <LiveCentrePage />;
   if (window.location.pathname === "/tournaments") return <TournamentManagerPage />;
+  if (marketId) return <MarketDetailPage duelId={marketId} />;
   return tournamentSlug ? <TournamentPage slug={tournamentSlug} /> : <MarketApp />;
+}
+
+function MarketDetailPage({ duelId }) {
+  const [market, setMarket] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [range, setRange] = useState("all");
+  const [selectedSide, setSelectedSide] = useState("yes");
+  const [setupMode, setSetupMode] = useState("create");
+  const metrics = marketDetailMetrics(market, analytics || {});
+  const history = marketPriceHistory(analytics || {}, market || {});
+  const outcomes = marketOutcomeRows(market || {}, analytics || {});
+  const depthYes = marketDepthRows(market || {}, analytics || {}, "yes");
+  const depthNo = marketDepthRows(market || {}, analytics || {}, "no");
+  const primary = outcomes[0] || { label: "Yes", price: 0 };
+  const secondary = outcomes[1] || { label: "No", price: 0 };
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+    Promise.all([
+      fetchBentoMarket(duelId),
+      fetchBentoMarketAnalytics(duelId).catch((loadError) => ({ analytics: { error: loadError.message } })),
+    ])
+      .then(([nextMarket, nextAnalytics]) => {
+        if (!alive) return;
+        setMarket(nextMarket);
+        setAnalytics(nextAnalytics.analytics || nextAnalytics);
+      })
+      .catch((loadError) => {
+        if (alive) setError(loadError.message || "Market failed to load");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [duelId]);
+
+  return (
+    <main className="market-detail-shell">
+      <header className="market-detail-header">
+        <a className="back-link" href="/"><ArrowLeft size={16} /> Markets</a>
+        <div className="market-title-row">
+          <span className="market-detail-avatar">{(market?.optionA || market?.title || "M").slice(0, 1)}</span>
+          <div>
+            <h1>{market?.title || (loading ? "Loading market..." : "Market unavailable")}</h1>
+            <small>{market?.category || market?.status || duelId}</small>
+          </div>
+        </div>
+      </header>
+
+      {error ? <div className="market-detail-error">{error}</div> : null}
+      <div className="market-detail-layout">
+        <section className="market-detail-main">
+          <div className="market-metric-strip">
+            <MarketMetric label="Volume" value={`$${formatCompact(metrics.volume)}`} />
+            <MarketMetric label="Liquidity" value={`$${formatCompact(metrics.liquidity)}`} />
+            <MarketMetric label="24h Vol" value={`$${formatCompact(metrics.volume24h)}`} />
+          </div>
+
+          <div className="market-chart-head">
+            <h2>Price History</h2>
+            <div className="market-range-tabs">
+              {["1h", "6h", "1d", "1w", "1m", "all"].map((item) => (
+                <button className={range === item ? "active" : ""} key={item} onClick={() => setRange(item)} type="button">
+                  {item.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <MarketHistoryChart history={history} loading={loading} />
+          <div className="market-outcome-tabs">
+            {outcomes.map((row) => (
+              <button className={selectedSide === row.tone ? "active" : ""} key={row.id} onClick={() => setSelectedSide(row.tone)} type="button">
+                <span className={`outcome-dot ${row.tone}`} />
+                {row.label}
+                <b>{row.price.toFixed(1)}%</b>
+              </button>
+            ))}
+          </div>
+
+          <section className="market-outcome-list">
+            {loading ? <LiveCentreSkeleton /> : outcomes.length ? outcomes.map((row) => (
+              <article className="market-outcome-row" key={row.id}>
+                <span className="market-detail-avatar">{row.label.slice(0, 1)}</span>
+                <div>
+                  <strong>{row.label}</strong>
+                  <small>${formatCompact(row.volume)} vol</small>
+                </div>
+                <a className="market-buy yes" href={`/?market=${encodeURIComponent(duelId)}&side=yes`}>Yes {row.price.toFixed(1)}c</a>
+                <a className="market-buy no" href={`/?market=${encodeURIComponent(duelId)}&side=no`}>No {Math.max(0, 100 - row.price).toFixed(1)}c</a>
+              </article>
+            )) : <div className="live-empty-state">No outcome data returned for this market.</div>}
+          </section>
+        </section>
+
+        <aside className="market-detail-rail">
+          <section className="market-wallet-card">
+            <span className="market-selected-chip">{selectedSide === "no" ? secondary.label : primary.label}</span>
+            <div className="market-wallet-icon"><Wallet size={26} /></div>
+            <h2>Setting up Polymarket</h2>
+            <p>Create a trading account or import an existing wallet before trading this market.</p>
+            <button className={setupMode === "create" ? "active" : ""} onClick={() => setSetupMode("create")} type="button">
+              <strong>Create new account</strong>
+              <span>We create a Polymarket deposit wallet linked to your Bento account.</span>
+            </button>
+            <button className={setupMode === "existing" ? "active" : ""} onClick={() => setSetupMode("existing")} type="button">
+              <strong>Use existing Polymarket account</strong>
+              <span>Import a wallet account you already use on Polymarket.</span>
+            </button>
+          </section>
+
+          <section className="market-depth-card">
+            <div className="market-depth-head">
+              <h2>Order book</h2>
+              <ChevronDown size={16} />
+            </div>
+            <div className="market-depth-toggle">
+              <button className={selectedSide === "yes" ? "active yes" : ""} onClick={() => setSelectedSide("yes")} type="button">Yes</button>
+              <button className={selectedSide === "no" ? "active no" : ""} onClick={() => setSelectedSide("no")} type="button">No</button>
+            </div>
+            <DepthTable rows={depthNo} tone="no" />
+            <div className="market-spread-row"><span>Spread</span><b>{depthYes.length && depthNo.length ? "0.1c" : "Unavailable"}</b></div>
+            <DepthTable rows={depthYes} tone="yes" />
+          </section>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+function MarketMetric({ label, value }) {
+  return (
+    <article>
+      <small>{label}</small>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function MarketHistoryChart({ history, loading }) {
+  if (loading) return <div className="market-history-empty">Loading price history...</div>;
+  if (!history.length) return <div className="market-history-empty">No Bento price snapshots yet.</div>;
+
+  const width = 720;
+  const height = 300;
+  const points = (key) => history.map((row, index) => {
+    const x = history.length === 1 ? width - 20 : 20 + (index / (history.length - 1)) * (width - 40);
+    const y = height - 20 - (Number(row[key]) / 100) * (height - 40);
+    return `${x},${y}`;
+  }).join(" ");
+  const latest = history.at(-1);
+
+  return (
+    <div className="market-history-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Market price history">
+        <polyline points={points("yes")} fill="none" stroke="#58aaff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+        <polyline points={points("no")} fill="none" stroke="#ff4b2b" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="market-chart-label yes">{latest.yes.toFixed(0)}%</div>
+      <div className="market-chart-label no">{latest.no.toFixed(0)}%</div>
+    </div>
+  );
+}
+
+function DepthTable({ rows, tone }) {
+  if (!rows.length) return <div className="market-depth-empty">Depth unavailable</div>;
+  const maxShares = Math.max(...rows.map((row) => row.shares), 1);
+  return (
+    <div className={`market-depth-table ${tone}`}>
+      {rows.map((row) => (
+        <div className="market-depth-row" key={`${tone}-${row.price}-${row.shares}`}>
+          <span>{row.price.toFixed(1)}c</span>
+          <i><b style={{ width: `${Math.max(12, (row.shares / maxShares) * 100)}%` }} /></i>
+          <strong>{formatCompact(row.shares)}</strong>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function TournamentManagerPage() {
@@ -3273,6 +3482,16 @@ function usernameFrom(value) {
 function usernameFromProfilePath() {
   const match = window.location.pathname.match(/^\/@([a-z0-9_]+)/i);
   return match ? usernameFrom(match[1]) : "";
+}
+
+function marketIdFromPath(pathname = "") {
+  const match = String(pathname).match(/^\/markets?\/([^/]+)\/?$/);
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return "";
+  }
 }
 
 function profileIdFrom({ username, walletId, name }) {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as bentoModule from "./bento.js";
-import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, leaderboardRows, leaderboardSummary, managedTournamentRows, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
+import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, leaderboardRows, leaderboardSummary, managedTournamentRows, marketDepthRows, marketDetailMetrics, marketOutcomeRows, marketPriceHistory, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -92,6 +92,18 @@ test("merges editable managed tournaments with read-only Bento catalog rows", ()
     ["f1-2026", false, "live", 3],
     ["friends", true, "upcoming", 1],
   ]);
+});
+
+test("normalizes market detail metrics, price history, outcomes, and depth", () => {
+  const market = { duelId: "duel-1", optionA: "Harry Kane", optionB: "Field", raw: { volume: 1000, liquidity: 300, volume24h: 75 } };
+  const analytics = {
+    yesPercentageSnapshots: { data: [{ timestamp: "t1", yesPercentage: 0.42 }, { timestamp: "t2", yesPercentage: 54 }] },
+  };
+
+  assert.deepEqual(marketDetailMetrics(market, analytics), { volume: 1000, liquidity: 300, volume24h: 75 });
+  assert.deepEqual(marketPriceHistory(analytics, market), [{ time: "t1", yes: 42, no: 58 }, { time: "t2", yes: 54, no: 46 }]);
+  assert.deepEqual(marketOutcomeRows(market, analytics).map((row) => [row.label, row.price]), [["Harry Kane", 54], ["Field", 46]]);
+  assert.equal(marketDepthRows(market, analytics, "yes").length, 6);
 });
 
 test("normalizes Bento login token and managed account variants", () => {

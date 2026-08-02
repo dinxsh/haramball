@@ -475,6 +475,78 @@ export function leaderboardSummary(users = []) {
   };
 }
 
+export function marketDetailMetrics(market = {}, analytics = {}) {
+  const raw = market?.raw || {};
+  const platform = analytics?.platformReport?.data || analytics?.platformReport || {};
+  const protocol = analytics?.protocolSummary?.data || analytics?.protocolSummary || {};
+  return {
+    volume: numberLike(raw.volume ?? raw.totalVolume ?? market.volume ?? platform.volume ?? protocol.volume, 0),
+    liquidity: numberLike(raw.liquidity ?? raw.pool ?? market.liquidity ?? analytics?.sellUnlockLiquidity?.liquidity ?? analytics?.sellUnlockLiquidity?.data?.liquidity, 0),
+    volume24h: numberLike(raw.volume24h ?? raw["24hVolume"] ?? raw.dailyVolume ?? platform.volume24h ?? protocol.volume24h, 0),
+  };
+}
+
+export function marketPriceHistory(analytics = {}, market = {}) {
+  const source = analytics?.yesPercentageSnapshots?.data
+    ?? analytics?.yesPercentageSnapshots?.snapshots
+    ?? analytics?.yesPercentageSnapshots?.items
+    ?? analytics?.yesPercentageSnapshots;
+  const rows = listFrom(source)
+    .map((item, index) => {
+      const yes = percentageFrom(item.yesPercentage ?? item.yes_percentage ?? item.percentage ?? item.yes ?? item.value);
+      const time = item.timestamp || item.createdAt || item.time || item.date || index;
+      return Number.isFinite(yes) ? { time, yes, no: Math.max(0, 100 - yes) } : null;
+    })
+    .filter(Boolean);
+
+  if (rows.length) return rows;
+
+  const fallbackYes = percentageFrom(market.raw?.yesPercentage ?? market.raw?.yes_percentage ?? market.yesPercentage);
+  return Number.isFinite(fallbackYes) ? [{ time: "Now", yes: fallbackYes, no: Math.max(0, 100 - fallbackYes) }] : [];
+}
+
+export function marketOutcomeRows(market = {}, analytics = {}) {
+  const history = marketPriceHistory(analytics, market);
+  const latest = history.at(-1);
+  const yes = latest?.yes ?? 50;
+  const options = [
+    { label: market.optionA || "Yes", price: yes, tone: "yes" },
+    { label: market.optionB || "No", price: Math.max(0, 100 - yes), tone: "no" },
+  ];
+  const rawVolume = numberLike(market.raw?.volume ?? market.liquidity, 0);
+  return options.map((option, index) => ({
+    id: `${market.duelId || "market"}-${index}`,
+    ...option,
+    volume: rawVolume ? rawVolume * (index === 0 ? option.price / 100 : 1 - yes / 100) : 0,
+  }));
+}
+
+export function marketDepthRows(market = {}, analytics = {}, side = "yes") {
+  const history = marketPriceHistory(analytics, market);
+  const latest = history.at(-1);
+  const base = side === "no" ? latest?.no ?? 50 : latest?.yes ?? 50;
+  const liquidity = Math.max(0, marketDetailMetrics(market, analytics).liquidity);
+  if (!Number.isFinite(base) || liquidity <= 0) return [];
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const offset = side === "yes" ? -index * 0.2 : index * 0.2;
+    const price = Math.max(0.1, Math.min(99.9, base + offset));
+    const shares = Math.max(1, Math.round((liquidity / (index + 2)) * 10) / 10);
+    return { price, shares };
+  });
+}
+
+function percentageFrom(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return Number.NaN;
+  return parsed <= 1 ? parsed * 100 : parsed;
+}
+
+function numberLike(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export function managedTournamentRows(tournaments = [], catalog = []) {
   const managed = (Array.isArray(tournaments) ? tournaments : []).map((item) => ({
     id: String(item.id),
