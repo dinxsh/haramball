@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as bentoModule from "./bento.js";
-import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, leaderboardRows, leaderboardSummary, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
+import { extractEstimate, fixtureFromMarket, humanToBaseUnits, humanToWei, isBentoMarketEnded, leaderboardRows, leaderboardSummary, managedTournamentRows, marketResultSummary, normalizeBentoLogin, portfolioPositions, portfolioSummary, tokenDecimalsFromMarket, weiToHuman } from "./bento.js";
 
 test("converts human USDC amounts to Bento base units", () => {
   assert.equal(humanToWei("1"), "1000000000000000000");
@@ -79,6 +79,19 @@ test("builds sorted leaderboard rows and summary metrics", () => {
     totalVolume: 5000,
     totalPnl: 280,
   });
+});
+
+test("merges editable managed tournaments with read-only Bento catalog rows", () => {
+  const rows = managedTournamentRows([
+    { id: "friends", name: "Friends League", sport: "Football", status: "upcoming", entryFee: 10, prizePool: 90, members: [{ username: "dinesh" }], teams: [{ id: "red", name: "Red" }] },
+  ], [
+    { id: "f1", slug: "f1-2026", name: "F1 2026 Tournament", sport: "Formula 1", status: "live", entries: 3, prizePool: 50 },
+  ]);
+
+  assert.deepEqual(rows.map((row) => [row.id, row.editable, row.status, row.members.length]), [
+    ["f1-2026", false, "live", 3],
+    ["friends", true, "upcoming", 1],
+  ]);
 });
 
 test("normalizes Bento login token and managed account variants", () => {

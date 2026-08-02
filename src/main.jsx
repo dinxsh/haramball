@@ -28,7 +28,9 @@ import {
 import {
   createBentoMarketDraft,
   createBentoWalletLink,
+  createManagedTournament,
   createPrivateGroup,
+  deleteManagedTournament,
   estimateBentoBet,
   exchangeBentoWalletCode,
   extractEstimate,
@@ -39,6 +41,7 @@ import {
   fetchBentoReadiness,
   fetchBentoUserShares,
   fetchLeaderboardUsers,
+  fetchManagedTournaments,
   fetchPrivateGroups,
   fixtureFromMarket,
   humanToBaseUnits,
@@ -58,6 +61,8 @@ import {
   saveLeaderboardUser,
   shortAddress,
   tokenDecimalsFromMarket,
+  managedTournamentRows,
+  updateManagedTournament,
   weiToHuman,
 } from "./bento";
 import ExplorerModal from "./ExplorerModal.jsx";
@@ -791,7 +796,7 @@ function MarketApp() {
           twitter: profileDraft.twitter,
           discord: profileDraft.discord,
           walletId: wallet,
-          managedAccount,
+  managedAccount,
           wins: 0,
           losses: 0,
         });
@@ -1092,6 +1097,10 @@ function MarketApp() {
                       <Flame size={15} />
                       Live Centre
                     </a>
+                    <a href="/tournaments">
+                      <Medal size={15} />
+                      Tournaments
+                    </a>
                     <button onClick={() => setTheme((value) => value === "classic" ? "night" : "classic")} type="button">
                       <Palette size={15} />
                       Theme: {theme === "classic" ? "Classic" : "Night"}
@@ -1365,7 +1374,276 @@ function App() {
   if (window.location.pathname === "/portfolio") return <PortfolioPage />;
   if (window.location.pathname === "/leaderboard") return <LeaderboardPage />;
   if (window.location.pathname === "/live" || window.location.pathname === "/feeds") return <LiveCentrePage />;
+  if (window.location.pathname === "/tournaments") return <TournamentManagerPage />;
   return tournamentSlug ? <TournamentPage slug={tournamentSlug} /> : <MarketApp />;
+}
+
+function TournamentManagerPage() {
+  const [managed, setManaged] = useState([]);
+  const [catalog, setCatalog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [sport, setSport] = useState("All");
+  const [status, setStatus] = useState("live");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [draft, setDraft] = useState(defaultTournamentDraft);
+  const [saving, setSaving] = useState(false);
+  const rows = useMemo(() => managedTournamentRows(managed, catalog), [catalog, managed]);
+  const sports = ["All", "Cricket", "Football", "Basketball", "NFL", "Formula 1"];
+  const statusCounts = useMemo(() => ({
+    live: rows.filter((row) => row.status === "live").length,
+    upcoming: rows.filter((row) => row.status === "upcoming").length,
+    settled: rows.filter((row) => row.status === "settled" || row.status === "ended").length,
+  }), [rows]);
+  const filteredRows = rows.filter((row) => {
+    const haystack = `${row.name} ${row.sport} ${row.format} ${row.code} ${row.members.map((member) => member.name || member.username).join(" ")} ${row.teams.map((team) => team.name).join(" ")}`.toLowerCase();
+    const sportMatch = sport === "All" || row.sport === sport || (sport === "NFL" && row.sport === "American Football");
+    const statusMatch = status === "settled" ? row.status === "settled" || row.status === "ended" : row.status === status;
+    return sportMatch && statusMatch && haystack.includes(query.trim().toLowerCase());
+  });
+
+  const loadTournaments = async () => {
+    setLoading(true);
+    try {
+      const [nextManaged, nextCatalog] = await Promise.all([
+        fetchManagedTournaments().catch(() => []),
+        fetchExplorerItems().catch(() => []),
+      ]);
+      setManaged(nextManaged);
+      setCatalog(nextCatalog);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTournaments();
+  }, []);
+
+  const openCreateTournament = () => {
+    setDraft(defaultTournamentDraft());
+    setEditorOpen(true);
+  };
+
+  const editTournament = (row) => {
+    setDraft(tournamentDraftFromRow(row));
+    setEditorOpen(true);
+  };
+
+  const saveTournament = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const saved = draft.id
+        ? await updateManagedTournament(tournamentPayloadFromDraft(draft))
+        : await createManagedTournament(tournamentPayloadFromDraft(draft));
+      setManaged((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+      setEditorOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTournament = async (row) => {
+    if (!row.editable) return;
+    await deleteManagedTournament(row.id);
+    setManaged((items) => items.filter((item) => item.id !== row.id));
+  };
+
+  return (
+    <main className="tournament-manager-shell">
+      <header className="tournament-manager-header">
+        <a className="back-link" href="/"><ArrowLeft size={16} /> haramball.xyz</a>
+        <h1>Tournaments</h1>
+        <div className="tournament-search-row">
+          <label className="tournament-search">
+            <Compass size={17} />
+            <input onChange={(event) => setQuery(event.target.value)} placeholder="Search tournaments" value={query} />
+          </label>
+          <button className="tournament-create-button" onClick={openCreateTournament} type="button">
+            <Plus size={17} />
+            Create Tournament
+          </button>
+        </div>
+      </header>
+
+      <div className="tournament-chip-row">
+        {sports.map((item) => (
+          <button className={sport === item ? "active" : ""} key={item} onClick={() => setSport(item)} type="button">
+            {sportIconLabel(item === "NFL" ? "American Football" : item)}
+            {item}
+          </button>
+        ))}
+      </div>
+
+      <div className="tournament-status-tabs">
+        {["live", "upcoming", "settled"].map((item) => (
+          <button className={status === item ? "active" : ""} key={item} onClick={() => setStatus(item)} type="button">
+            {titleCase(item)}
+            <span>{statusCounts[item] || 0}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <section className="tournament-grid"><LiveCentreSkeleton /></section>
+      ) : filteredRows.length ? (
+        <section className="tournament-grid">
+          {filteredRows.map((row) => (
+            <TournamentManagerCard key={`${row.source}-${row.id}`} onDelete={removeTournament} onEdit={editTournament} row={row} />
+          ))}
+        </section>
+      ) : (
+        <div className="live-empty-state">No tournaments match this view yet.</div>
+      )}
+
+      {editorOpen ? (
+        <TournamentEditorModal
+          draft={draft}
+          onClose={() => !saving && setEditorOpen(false)}
+          onSubmit={saveTournament}
+          saving={saving}
+          setDraft={setDraft}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+function TournamentManagerCard({ onDelete, onEdit, row }) {
+  return (
+    <article className="tournament-manager-card">
+      <div className="tournament-cover">
+        {row.coverImageUrl ? <img alt="" src={row.coverImageUrl} /> : <span>{row.code.slice(0, 2)}</span>}
+      </div>
+      <div className="tournament-card-main">
+        <div>
+          <strong>{row.name}</strong>
+          <small>{row.format}</small>
+        </div>
+        <div className="tournament-pills">
+          <span><Coins size={13} /> ${formatCompact(row.entryFee)}</span>
+          <span><Trophy size={13} /> ${formatCompact(row.prizePool)}</span>
+          <span><Medal size={13} /> {row.code}</span>
+        </div>
+        <div className="tournament-roster-line">
+          <span><UserPlus size={14} /> +{row.members.length}</span>
+          {row.teams.slice(0, 3).map((team) => <b key={team.id}>{team.name}</b>)}
+        </div>
+      </div>
+      <div className="tournament-card-actions">
+        <span className={`live-status-pill ${row.status === "settled" ? "ended" : row.status}`}>{row.status}</span>
+        {row.editable ? (
+          <>
+            <button onClick={() => onEdit(row)} type="button">Edit</button>
+            <button className="danger" onClick={() => onDelete(row)} type="button">Delete</button>
+          </>
+        ) : row.slug ? (
+          <a href={`/tournaments/${encodeURIComponent(row.slug)}`}>Enter</a>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function TournamentEditorModal({ draft, onClose, onSubmit, saving, setDraft }) {
+  const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <form className="tournament-editor-modal" onSubmit={onSubmit}>
+        <div className="token-modal-head">
+          <div>
+            <h2>{draft.id ? "Edit tournament" : "Create tournament"}</h2>
+            <p>Manage players and teams for a private or public tournament room.</p>
+          </div>
+          <button className="profile-icon-button modal-close" onClick={onClose} type="button"><X size={18} /></button>
+        </div>
+        <label>
+          <span>Name</span>
+          <input autoFocus onChange={(event) => setField("name", event.target.value)} placeholder="FIFA World Cup: Friends League" value={draft.name} />
+        </label>
+        <div className="tournament-editor-grid">
+          <label>
+            <span>Sport</span>
+            <select onChange={(event) => setField("sport", event.target.value)} value={draft.sport}>
+              {["Cricket", "Football", "Basketball", "American Football", "Formula 1"].map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select onChange={(event) => setField("status", event.target.value)} value={draft.status}>
+              {["live", "upcoming", "settled"].map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Entry fee</span>
+            <input min="0" onChange={(event) => setField("entryFee", event.target.value)} type="number" value={draft.entryFee} />
+          </label>
+          <label>
+            <span>Prize pool</span>
+            <input min="0" onChange={(event) => setField("prizePool", event.target.value)} type="number" value={draft.prizePool} />
+          </label>
+        </div>
+        <label>
+          <span>Users</span>
+          <textarea onChange={(event) => setField("membersText", event.target.value)} placeholder="dinesh, abhi@example.com, predictionnoob" value={draft.membersText} />
+        </label>
+        <label>
+          <span>Teams</span>
+          <textarea onChange={(event) => setField("teamsText", event.target.value)} placeholder="Red Bulls, Blue Lock, Final XI" value={draft.teamsText} />
+        </label>
+        <div className="token-modal-actions">
+          <button className="chip" disabled={saving} onClick={onClose} type="button">Cancel</button>
+          <button className="activate-button" disabled={saving || !draft.name.trim()} type="submit">
+            {saving ? "Saving..." : draft.id ? "Save Tournament" : "Create Tournament"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function defaultTournamentDraft() {
+  return {
+    id: "",
+    name: "",
+    sport: "Football",
+    format: "Group + Knockout",
+    status: "upcoming",
+    entryFee: 10,
+    prizePool: 50,
+    membersText: "",
+    teamsText: "",
+    coverImageUrl: "",
+  };
+}
+
+function tournamentDraftFromRow(row) {
+  return {
+    ...defaultTournamentDraft(),
+    ...row.raw,
+    membersText: row.members.map((member) => member.email || member.username || member.name).filter(Boolean).join(", "),
+    teamsText: row.teams.map((team) => team.name).join(", "),
+  };
+}
+
+function tournamentPayloadFromDraft(draft) {
+  return {
+    id: draft.id || undefined,
+    name: draft.name,
+    sport: draft.sport,
+    format: draft.format,
+    status: draft.status,
+    entryFee: Number(draft.entryFee) || 0,
+    prizePool: Number(draft.prizePool) || 0,
+    coverImageUrl: draft.coverImageUrl,
+    members: commaItems(draft.membersText).map((value) => ({ name: value.includes("@") ? value.split("@")[0] : value, username: value, email: value.includes("@") ? value : "" })),
+    teams: commaItems(draft.teamsText).map((name) => ({ name })),
+  };
+}
+
+function commaItems(value) {
+  return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
 }
 
 function LiveCentrePage() {

@@ -162,6 +162,26 @@ export async function fetchPrivateGroups() {
   return payload.groups || [];
 }
 
+export async function fetchManagedTournaments() {
+  const payload = await fetchJson("/api/groups?scope=tournaments");
+  return payload.tournaments || [];
+}
+
+export async function createManagedTournament(tournament) {
+  const payload = await postJson("/api/groups?scope=tournaments", { action: "create", tournament });
+  return payload.tournament;
+}
+
+export async function updateManagedTournament(tournament) {
+  const payload = await postJson("/api/groups?scope=tournaments", { action: "update", id: tournament.id, tournament });
+  return payload.tournament;
+}
+
+export async function deleteManagedTournament(id) {
+  const payload = await postJson("/api/groups?scope=tournaments", { action: "delete", id });
+  return payload.tournament;
+}
+
 export async function createPrivateGroup({ name, owner }) {
   const payload = await postJson("/api/groups", { action: "create", name, owner });
   return payload.group;
@@ -453,6 +473,48 @@ export function leaderboardSummary(users = []) {
     totalVolume: rows.reduce((sum, row) => sum + row.volume, 0),
     totalPnl: rows.reduce((sum, row) => sum + row.pnl, 0),
   };
+}
+
+export function managedTournamentRows(tournaments = [], catalog = []) {
+  const managed = (Array.isArray(tournaments) ? tournaments : []).map((item) => ({
+    id: String(item.id),
+    name: String(item.name || "Tournament"),
+    sport: String(item.sport || "Football"),
+    format: String(item.format || "Group + Knockout"),
+    status: String(item.status || "upcoming").toLowerCase(),
+    entryFee: Number(item.entryFee || 0),
+    prizePool: Number(item.prizePool || 0),
+    code: String(item.code || "T"),
+    members: Array.isArray(item.members) ? item.members : [],
+    teams: Array.isArray(item.teams) ? item.teams : [],
+    coverImageUrl: String(item.coverImageUrl || ""),
+    editable: true,
+    source: "managed",
+    raw: item,
+  }));
+  const catalogRows = (Array.isArray(catalog) ? catalog : []).map((item) => ({
+    id: String(item.slug || item.id),
+    slug: item.slug,
+    name: String(item.name || "Bento tournament"),
+    sport: String(item.sport || item.category || "Football"),
+    format: item.kind === "f1" ? "Knockout" : "Group + Knockout",
+    status: String(item.status || "upcoming").toLowerCase() === "ended" ? "settled" : String(item.status || "upcoming").toLowerCase(),
+    entryFee: Number(item.entryFee || item.buyin || 0),
+    prizePool: Number(item.prizePool || item.pool || 0),
+    code: String(item.code || item.nextEvent?.code || (item.kind === "f1" ? "R65536" : "F")),
+    members: Array.from({ length: Number(item.entries || item.participants || 0) || 0 }, (_, index) => ({ id: `${item.id}-${index}` })),
+    teams: [],
+    coverImageUrl: String(item.coverImageUrl || item.image || ""),
+    editable: false,
+    source: "bento",
+    raw: item,
+  }));
+
+  return [...managed, ...catalogRows].sort((left, right) => statusRank(left.status) - statusRank(right.status) || right.prizePool - left.prizePool);
+}
+
+function statusRank(status) {
+  return { live: 0, upcoming: 1, settled: 2, ended: 2 }[status] ?? 3;
 }
 
 export function shortAddress(address) {

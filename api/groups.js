@@ -2,11 +2,19 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const GROUPS_FILE = path.join(process.cwd(), "data", "groups.json");
+const TOURNAMENTS_FILE = path.join(process.cwd(), "data", "tournaments.json");
 const IS_VERCEL = process.env.VERCEL === "1";
 let vercelGroupsCache = null;
+let vercelTournamentsCache = null;
 
 export default async function handler(request, response) {
   try {
+    const url = new URL(request.url, "http://localhost");
+    if (url.searchParams.get("scope") === "tournaments") {
+      await handleTournaments(request, response);
+      return;
+    }
+
     if (request.method === "GET") {
       sendJson(response, 200, { groups: await readGroups() });
       return;
@@ -69,6 +77,59 @@ export default async function handler(request, response) {
   }
 }
 
+async function handleTournaments(request, response) {
+  if (request.method === "GET") {
+    sendJson(response, 200, { tournaments: await readTournaments() });
+    return;
+  }
+
+  if (request.method === "POST" || request.method === "PATCH") {
+    const body = await readJsonBody(request);
+    const action = String(body.action || (request.method === "PATCH" ? "update" : "create")).toLowerCase();
+    const tournaments = await readTournaments();
+
+    if (action === "create") {
+      const tournament = normalizeTournament({
+        ...body.tournament,
+        id: body.tournament?.id || `tournament-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      if (!tournament.name) return sendJson(response, 400, { error: { message: "tournament name is required", statusCode: 400 } });
+      const nextTournaments = [tournament, ...tournaments.filter((item) => item.id !== tournament.id)];
+      await writeTournaments(nextTournaments);
+      sendJson(response, 200, { tournament, tournaments: nextTournaments });
+      return;
+    }
+
+    if (action === "update") {
+      const patch = normalizeTournament({ ...body.tournament, id: body.id || body.tournament?.id, updatedAt: new Date().toISOString() });
+      const nextTournaments = tournaments.map((item) => item.id === patch.id ? normalizeTournament({ ...item, ...patch }) : item);
+      const tournament = nextTournaments.find((item) => item.id === patch.id);
+      if (!tournament) return sendJson(response, 404, { error: { message: "tournament not found", statusCode: 404 } });
+      await writeTournaments(nextTournaments);
+      sendJson(response, 200, { tournament, tournaments: nextTournaments });
+      return;
+    }
+
+    if (action === "delete") {
+      const id = String(body.id || body.tournament?.id || "");
+      const tournament = tournaments.find((item) => item.id === id);
+      if (!tournament) return sendJson(response, 404, { error: { message: "tournament not found", statusCode: 404 } });
+      const nextTournaments = tournaments.filter((item) => item.id !== id);
+      await writeTournaments(nextTournaments);
+      sendJson(response, 200, { tournament, tournaments: nextTournaments });
+      return;
+    }
+
+    sendJson(response, 400, { error: { message: "unknown tournament action", statusCode: 400 } });
+    return;
+  }
+
+  response.setHeader("Allow", "GET, POST, PATCH");
+  sendJson(response, 405, { error: { message: "Method not allowed", statusCode: 405 } });
+}
+
 async function readGroups() {
   if (IS_VERCEL) {
     if (!vercelGroupsCache) vercelGroupsCache = await readBundledGroups();
@@ -110,6 +171,47 @@ async function ensureGroupsFile() {
   }
 }
 
+async function readTournaments() {
+  if (IS_VERCEL) {
+    if (!vercelTournamentsCache) vercelTournamentsCache = await readBundledTournaments();
+    return vercelTournamentsCache;
+  }
+
+  await ensureTournamentsFile();
+  const raw = await fs.readFile(TOURNAMENTS_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed.tournaments) ? parsed.tournaments.map(normalizeTournament).filter((item) => item.id && item.name) : [];
+}
+
+async function writeTournaments(tournaments) {
+  const normalized = tournaments.map(normalizeTournament);
+  if (IS_VERCEL) {
+    vercelTournamentsCache = normalized;
+    return;
+  }
+
+  await fs.mkdir(path.dirname(TOURNAMENTS_FILE), { recursive: true });
+  await fs.writeFile(TOURNAMENTS_FILE, `${JSON.stringify({ tournaments: normalized }, null, 2)}\n`);
+}
+
+async function readBundledTournaments() {
+  try {
+    const raw = await fs.readFile(TOURNAMENTS_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed.tournaments) ? parsed.tournaments.map(normalizeTournament) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function ensureTournamentsFile() {
+  try {
+    await fs.access(TOURNAMENTS_FILE);
+  } catch {
+    await writeTournaments([]);
+  }
+}
+
 function normalizeGroup(value = {}) {
   return {
     id: String(value.id || `group-${Date.now()}`),
@@ -119,6 +221,39 @@ function normalizeGroup(value = {}) {
     members: (Array.isArray(value.members) ? value.members : []).map(normalizeMember).filter((member) => member.username || member.email),
     invites: (Array.isArray(value.invites) ? value.invites : []).map(normalizeInvite).filter((invite) => invite.target),
     createdAt: String(value.createdAt || new Date().toISOString()),
+  };
+}
+
+function normalizeTournament(value = {}) {
+  const members = Array.isArray(value.members) ? value.members : [];
+  const teams = Array.isArray(value.teams) ? value.teams : [];
+  const status = String(value.status || "upcoming").toLowerCase();
+  const sport = String(value.sport || "Football");
+  return {
+    id: String(value.id || `tournament-${Date.now()}`),
+    name: String(value.name || "").trim(),
+    sport,
+    format: String(value.format || "Group + Knockout").trim(),
+    status: ["live", "upcoming", "settled"].includes(status) ? status : "upcoming",
+    entryFee: numberFrom(value.entryFee, 10),
+    prizePool: numberFrom(value.prizePool, 0),
+    code: String(value.code || codeFrom(value.name || sport)).toUpperCase(),
+    owner: normalizeMember(value.owner),
+    members: dedupeMembers(members.map(normalizeMember).filter((member) => member.username || member.email || member.name)),
+    teams: dedupeTeams(teams.map(normalizeTeam).filter((team) => team.name)),
+    coverImageUrl: String(value.coverImageUrl || ""),
+    createdAt: String(value.createdAt || new Date().toISOString()),
+    updatedAt: String(value.updatedAt || value.createdAt || new Date().toISOString()),
+  };
+}
+
+function normalizeTeam(value = {}) {
+  return {
+    id: String(value.id || codeFrom(value.name || `team-${Date.now()}`)),
+    name: String(value.name || "").trim(),
+    color: String(value.color || "#ff4b2b"),
+    captain: normalizeMember(value.captain),
+    members: dedupeMembers((Array.isArray(value.members) ? value.members : []).map(normalizeMember)),
   };
 }
 
@@ -155,6 +290,35 @@ function dedupeByKey(items, key) {
     if (value) seen.set(value, item);
   }
   return [...seen.values()];
+}
+
+function dedupeMembers(items) {
+  const seen = new Map();
+  for (const member of items) {
+    const key = member.username || member.email || member.id || member.name;
+    if (key) seen.set(String(key).toLowerCase(), member);
+  }
+  return [...seen.values()];
+}
+
+function dedupeTeams(items) {
+  const seen = new Map();
+  for (const team of items) {
+    if (team.name) seen.set(team.id || team.name.toLowerCase(), team);
+  }
+  return [...seen.values()];
+}
+
+function numberFrom(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function codeFrom(value) {
+  return String(value || "tournament")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 8) || "tourney";
 }
 
 function inviteCode() {
